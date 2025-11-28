@@ -18,6 +18,8 @@
 </p>
 
 ---
+Any comments, feature requests or even collaboration are welcom and very appreciated!
+---
 
 ## Features
 
