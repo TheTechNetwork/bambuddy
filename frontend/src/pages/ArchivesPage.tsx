@@ -246,14 +246,15 @@ function ArchiveCard({
 
   return (
     <Card
-      className={`relative flex flex-col ${isSelected ? 'ring-2 ring-bambu-green' : ''}`}
+      className={`relative flex flex-col ${isSelected ? 'ring-2 ring-bambu-green' : ''} ${selectionMode ? 'cursor-pointer' : ''}`}
       onContextMenu={handleContextMenu}
+      onClick={selectionMode ? () => onSelect(archive.id) : undefined}
     >
       {/* Selection checkbox */}
       {selectionMode && (
         <button
           className="absolute top-2 left-2 z-10 p-1 rounded bg-black/50 hover:bg-black/70 transition-colors"
-          onClick={() => onSelect(archive.id)}
+          onClick={(e) => { e.stopPropagation(); onSelect(archive.id); }}
         >
           {isSelected ? (
             <CheckSquare className="w-5 h-5 text-bambu-green" />
@@ -643,6 +644,7 @@ export function ArchivesPage() {
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [showBatchTag, setShowBatchTag] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
@@ -759,7 +761,7 @@ export function ArchivesPage() {
       }
     });
 
-  const selectionMode = selectedIds.size > 0;
+  const selectionMode = isSelectionMode || selectedIds.size > 0;
 
   const toggleSelect = (id: number) => {
     setSelectedIds((prev) => {
@@ -781,6 +783,7 @@ export function ArchivesPage() {
 
   const clearSelection = () => {
     setSelectedIds(new Set());
+    setIsSelectionMode(false);
   };
 
   const toggleColor = (color: string) => {
@@ -966,7 +969,7 @@ export function ArchivesPage() {
         </div>
         <div className="flex items-center gap-3">
           {!selectionMode && (
-            <Button variant="secondary" onClick={() => filteredArchives?.length && toggleSelect(filteredArchives[0].id)}>
+            <Button variant="secondary" onClick={() => setIsSelectionMode(true)}>
               <CheckSquare className="w-4 h-4" />
               Select
             </Button>

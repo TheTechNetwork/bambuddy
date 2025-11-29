@@ -208,6 +208,17 @@ async def get_archive_stats(db: AsyncSession = Depends(get_db)):
         for printer_key, accs in printer_accuracies.items():
             accuracy_by_printer[printer_key] = round(sum(accs) / len(accs), 1)
 
+    # Energy totals
+    energy_kwh_result = await db.execute(
+        select(func.sum(PrintArchive.energy_kwh))
+    )
+    total_energy_kwh = energy_kwh_result.scalar() or 0
+
+    energy_cost_result = await db.execute(
+        select(func.sum(PrintArchive.energy_cost))
+    )
+    total_energy_cost = energy_cost_result.scalar() or 0
+
     return ArchiveStats(
         total_prints=total_prints,
         successful_prints=successful_prints,
@@ -219,6 +230,8 @@ async def get_archive_stats(db: AsyncSession = Depends(get_db)):
         prints_by_printer=prints_by_printer,
         average_time_accuracy=average_accuracy,
         time_accuracy_by_printer=accuracy_by_printer if accuracy_by_printer else None,
+        total_energy_kwh=round(total_energy_kwh, 3),
+        total_energy_cost=round(total_energy_cost, 2),
     )
 
 

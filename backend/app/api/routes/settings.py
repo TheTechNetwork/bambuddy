@@ -48,7 +48,7 @@ async def get_settings(db: AsyncSession = Depends(get_db)):
             # Parse the value based on the expected type
             if setting.key in ["auto_archive", "save_thumbnails", "capture_finish_photo"]:
                 settings_dict[setting.key] = setting.value.lower() == "true"
-            elif setting.key == "default_filament_cost":
+            elif setting.key in ["default_filament_cost", "energy_cost_per_kwh"]:
                 settings_dict[setting.key] = float(setting.value)
             else:
                 settings_dict[setting.key] = setting.value

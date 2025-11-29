@@ -17,6 +17,7 @@ from backend.app.schemas.smart_plug import (
     SmartPlugControl,
     SmartPlugStatus,
     SmartPlugTestConnection,
+    SmartPlugEnergy,
 )
 from backend.app.services.tasmota import tasmota_service
 
@@ -183,7 +184,7 @@ async def control_smart_plug(
 
 @router.get("/{plug_id}/status", response_model=SmartPlugStatus)
 async def get_plug_status(plug_id: int, db: AsyncSession = Depends(get_db)):
-    """Get current plug status from device."""
+    """Get current plug status from device including energy data."""
     result = await db.execute(select(SmartPlug).where(SmartPlug.id == plug_id))
     plug = result.scalar_one_or_none()
     if not plug:
@@ -197,10 +198,18 @@ async def get_plug_status(plug_id: int, db: AsyncSession = Depends(get_db)):
         plug.last_checked = datetime.utcnow()
         await db.commit()
 
+    # Fetch energy data if device is reachable
+    energy_data = None
+    if status["reachable"]:
+        energy = await tasmota_service.get_energy(plug)
+        if energy:
+            energy_data = SmartPlugEnergy(**energy)
+
     return SmartPlugStatus(
         state=status["state"],
         reachable=status["reachable"],
         device_name=status.get("device_name"),
+        energy=energy_data,
     )
 
 

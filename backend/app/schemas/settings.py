@@ -9,6 +9,7 @@ class AppSettings(BaseModel):
     capture_finish_photo: bool = Field(default=True, description="Capture photo from printer camera when print completes")
     default_filament_cost: float = Field(default=25.0, description="Default filament cost per kg")
     currency: str = Field(default="USD", description="Currency for cost tracking")
+    energy_cost_per_kwh: float = Field(default=0.15, description="Electricity cost per kWh for energy tracking")
 
 
 class AppSettingsUpdate(BaseModel):
@@ -19,3 +20,4 @@ class AppSettingsUpdate(BaseModel):
     capture_finish_photo: bool | None = None
     default_filament_cost: float | None = None
     currency: str | None = None
+    energy_cost_per_kwh: float | None = None

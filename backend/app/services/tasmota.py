@@ -150,6 +150,44 @@ class TasmotaService:
 
         return success
 
+    async def get_energy(self, plug: "SmartPlug") -> dict | None:
+        """Get energy monitoring data from the plug.
+
+        Returns dict with energy data or None if not available:
+            - power: Current power in watts
+            - voltage: Voltage in V
+            - current: Current in A
+            - today: Energy used today in kWh
+            - total: Total energy in kWh
+            - factor: Power factor (0-1)
+        """
+        result = await self._send_command(
+            plug.ip_address, "Status 8", plug.username, plug.password
+        )
+
+        if result is None:
+            return None
+
+        # Response format: {"StatusSNS":{"ENERGY":{...}}}
+        status_sns = result.get("StatusSNS", {})
+        energy = status_sns.get("ENERGY")
+
+        if not energy:
+            # Device doesn't have energy monitoring
+            return None
+
+        return {
+            "power": energy.get("Power"),  # Current watts
+            "voltage": energy.get("Voltage"),  # Volts
+            "current": energy.get("Current"),  # Amps
+            "today": energy.get("Today"),  # kWh today
+            "yesterday": energy.get("Yesterday"),  # kWh yesterday
+            "total": energy.get("Total"),  # Total kWh
+            "factor": energy.get("Factor"),  # Power factor
+            "apparent_power": energy.get("ApparentPower"),  # VA
+            "reactive_power": energy.get("ReactivePower"),  # VAr
+        }
+
     async def test_connection(
         self,
         ip: str,

@@ -50,10 +50,24 @@ class SmartPlugControl(BaseModel):
     action: Literal["on", "off", "toggle"]
 
 
+class SmartPlugEnergy(BaseModel):
+    """Energy monitoring data from a smart plug."""
+    power: float | None = None  # Current watts
+    voltage: float | None = None  # Volts
+    current: float | None = None  # Amps
+    today: float | None = None  # kWh used today
+    yesterday: float | None = None  # kWh used yesterday
+    total: float | None = None  # Total kWh
+    factor: float | None = None  # Power factor (0-1)
+    apparent_power: float | None = None  # VA
+    reactive_power: float | None = None  # VAr
+
+
 class SmartPlugStatus(BaseModel):
     state: str | None = None  # "ON", "OFF", or None if unreachable
     reachable: bool = True
     device_name: str | None = None
+    energy: SmartPlugEnergy | None = None  # Energy data if available
 
 
 class SmartPlugTestConnection(BaseModel):

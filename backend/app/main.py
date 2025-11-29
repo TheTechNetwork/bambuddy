@@ -28,10 +28,15 @@ from backend.app.services.bambu_mqtt import PrinterState
 from backend.app.services.archive import ArchiveService
 from backend.app.services.bambu_ftp import download_file_async
 from backend.app.services.smart_plug_manager import smart_plug_manager
+from backend.app.services.tasmota import tasmota_service
+from backend.app.models.smart_plug import SmartPlug
 
 
 # Track active prints: {(printer_id, filename): archive_id}
 _active_prints: dict[tuple[int, str], int] = {}
+
+# Track starting energy for prints: {archive_id: starting_kwh}
+_print_energy_start: dict[int, float] = {}
 
 
 async def on_printer_status_change(printer_id: int, state: PrinterState):
@@ -183,6 +188,20 @@ async def on_print_start(printer_id: int, data: dict):
 
                 logger.info(f"Created archive {archive.id} for {downloaded_filename}")
 
+                # Record starting energy from smart plug if available
+                try:
+                    plug_result = await db.execute(
+                        select(SmartPlug).where(SmartPlug.printer_id == printer_id)
+                    )
+                    plug = plug_result.scalar_one_or_none()
+                    if plug:
+                        energy = await tasmota_service.get_energy(plug)
+                        if energy and energy.get("total") is not None:
+                            _print_energy_start[archive.id] = energy["total"]
+                            logger.info(f"Recorded starting energy for archive {archive.id}: {energy['total']} kWh")
+                except Exception as e:
+                    logger.warning(f"Failed to record starting energy: {e}")
+
                 await ws_manager.send_archive_created({
                     "id": archive.id,
                     "printer_id": archive.printer_id,
@@ -275,6 +294,44 @@ async def on_print_complete(printer_id: int, data: dict):
             "id": archive_id,
             "status": status,
         })
+
+    # Calculate energy used for this print
+    try:
+        starting_kwh = _print_energy_start.pop(archive_id, None)
+        if starting_kwh is not None:
+            async with async_session() as db:
+                # Get smart plug for this printer
+                plug_result = await db.execute(
+                    select(SmartPlug).where(SmartPlug.printer_id == printer_id)
+                )
+                plug = plug_result.scalar_one_or_none()
+
+                if plug:
+                    energy = await tasmota_service.get_energy(plug)
+                    if energy and energy.get("total") is not None:
+                        ending_kwh = energy["total"]
+                        energy_used = round(ending_kwh - starting_kwh, 4)
+
+                        # Get energy cost per kWh from settings (default to 0.15)
+                        from backend.app.api.routes.settings import get_setting
+                        energy_cost_per_kwh = await get_setting(db, "energy_cost_per_kwh")
+                        cost_per_kwh = float(energy_cost_per_kwh) if energy_cost_per_kwh else 0.15
+                        energy_cost = round(energy_used * cost_per_kwh, 2)
+
+                        # Update archive with energy data
+                        from backend.app.models.archive import PrintArchive
+                        result = await db.execute(
+                            select(PrintArchive).where(PrintArchive.id == archive_id)
+                        )
+                        archive = result.scalar_one_or_none()
+                        if archive:
+                            archive.energy_kwh = energy_used
+                            archive.energy_cost = energy_cost
+                            await db.commit()
+                            logger.info(f"Recorded energy for archive {archive_id}: {energy_used} kWh (${energy_cost})")
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Failed to calculate energy: {e}")
 
     # Capture finish photo from printer camera
     try:

@@ -50,6 +50,10 @@ class PrintArchive(Base):
     photos: Mapped[list | None] = mapped_column(JSON)  # List of photo filenames
     failure_reason: Mapped[str | None] = mapped_column(String(100))  # For failed prints
 
+    # Energy tracking
+    energy_kwh: Mapped[float | None] = mapped_column(Float)  # Energy consumed in kWh
+    energy_cost: Mapped[float | None] = mapped_column(Float)  # Cost of energy consumed
+
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now()

@@ -7,6 +7,7 @@ import {
   DollarSign,
   Printer,
   Target,
+  Zap,
 } from 'lucide-react';
 import { api } from '../api/client';
 import { PrintCalendar } from '../components/PrintCalendar';
@@ -25,11 +26,13 @@ function QuickStatsWidget({
     total_print_time_hours: number;
     total_filament_grams: number;
     total_cost: number;
+    total_energy_kwh: number;
+    total_energy_cost: number;
   } | undefined;
   currency: string;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-4">
+    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
       <div className="flex items-start gap-3">
         <div className="p-2 rounded-lg bg-bambu-dark text-bambu-green">
           <Package className="w-5 h-5" />
@@ -62,8 +65,26 @@ function QuickStatsWidget({
           <DollarSign className="w-5 h-5" />
         </div>
         <div>
-          <p className="text-xs text-bambu-gray">Total Cost</p>
+          <p className="text-xs text-bambu-gray">Filament Cost</p>
           <p className="text-xl font-bold text-white">{currency} {stats?.total_cost.toFixed(2) || '0.00'}</p>
+        </div>
+      </div>
+      <div className="flex items-start gap-3">
+        <div className="p-2 rounded-lg bg-bambu-dark text-yellow-400">
+          <Zap className="w-5 h-5" />
+        </div>
+        <div>
+          <p className="text-xs text-bambu-gray">Energy Used</p>
+          <p className="text-xl font-bold text-white">{stats?.total_energy_kwh.toFixed(2) || '0.00'} kWh</p>
+        </div>
+      </div>
+      <div className="flex items-start gap-3">
+        <div className="p-2 rounded-lg bg-bambu-dark text-yellow-500">
+          <DollarSign className="w-5 h-5" />
+        </div>
+        <div>
+          <p className="text-xs text-bambu-gray">Energy Cost</p>
+          <p className="text-xl font-bold text-white">{currency} {stats?.total_energy_cost.toFixed(2) || '0.00'}</p>
         </div>
       </div>
     </div>

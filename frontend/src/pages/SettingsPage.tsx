@@ -46,7 +46,8 @@ export function SettingsPage() {
         settings.save_thumbnails !== localSettings.save_thumbnails ||
         settings.capture_finish_photo !== localSettings.capture_finish_photo ||
         settings.default_filament_cost !== localSettings.default_filament_cost ||
-        settings.currency !== localSettings.currency;
+        settings.currency !== localSettings.currency ||
+        settings.energy_cost_per_kwh !== localSettings.energy_cost_per_kwh;
       setHasChanges(changed);
     }
   }, [settings, localSettings]);
@@ -221,6 +222,24 @@ export function SettingsPage() {
                   <option value="CAD">CAD ($)</option>
                   <option value="AUD">AUD ($)</option>
                 </select>
+              </div>
+              <div>
+                <label className="block text-sm text-bambu-gray mb-1">
+                  Electricity cost per kWh
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={localSettings.energy_cost_per_kwh}
+                  onChange={(e) =>
+                    updateSetting('energy_cost_per_kwh', parseFloat(e.target.value) || 0)
+                  }
+                  className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
+                />
+                <p className="text-xs text-bambu-gray mt-1">
+                  Used for tracking energy costs per print via smart plugs
+                </p>
               </div>
             </CardContent>
           </Card>

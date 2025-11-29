@@ -103,12 +103,12 @@ function PrinterCard({ printer, hideIfDisconnected }: { printer: Printer; hideIf
     queryFn: () => api.getSmartPlugByPrinter(printer.id),
   });
 
-  // Fetch smart plug status if plug exists
+  // Fetch smart plug status if plug exists (faster refresh for energy monitoring)
   const { data: plugStatus } = useQuery({
     queryKey: ['smartPlugStatus', smartPlug?.id],
     queryFn: () => smartPlug ? api.getSmartPlugStatus(smartPlug.id) : null,
     enabled: !!smartPlug,
-    refetchInterval: 30000,
+    refetchInterval: 10000, // 10 seconds for real-time power display
   });
 
   // Determine if this card should be hidden
@@ -364,6 +364,12 @@ function PrinterCard({ printer, hideIfDisconnected }: { printer: Printer; hideIf
                     }`}
                   >
                     {plugStatus.state || '?'}
+                  </span>
+                )}
+                {/* Power consumption display */}
+                {plugStatus?.energy?.power != null && plugStatus.state === 'ON' && (
+                  <span className="text-xs text-yellow-400 font-medium flex-shrink-0">
+                    {plugStatus.energy.power}W
                   </span>
                 )}
               </div>

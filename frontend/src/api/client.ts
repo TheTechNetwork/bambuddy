@@ -114,6 +114,8 @@ export interface Archive {
   cost: number | null;
   photos: string[] | null;
   failure_reason: string | null;
+  energy_kwh: number | null;
+  energy_cost: number | null;
   created_at: string;
 }
 
@@ -128,6 +130,8 @@ export interface ArchiveStats {
   prints_by_printer: Record<string, number>;
   average_time_accuracy: number | null;
   time_accuracy_by_printer: Record<string, number> | null;
+  total_energy_kwh: number;
+  total_energy_cost: number;
 }
 
 export interface BulkUploadResult {
@@ -144,6 +148,7 @@ export interface AppSettings {
   capture_finish_photo: boolean;
   default_filament_cost: number;
   currency: string;
+  energy_cost_per_kwh: number;
 }
 
 export type AppSettingsUpdate = Partial<AppSettings>;
@@ -231,10 +236,23 @@ export interface SmartPlugUpdate {
   password?: string | null;
 }
 
+export interface SmartPlugEnergy {
+  power: number | null;  // Current watts
+  voltage: number | null;  // Volts
+  current: number | null;  // Amps
+  today: number | null;  // kWh used today
+  yesterday: number | null;  // kWh used yesterday
+  total: number | null;  // Total kWh
+  factor: number | null;  // Power factor (0-1)
+  apparent_power: number | null;  // VA
+  reactive_power: number | null;  // VAr
+}
+
 export interface SmartPlugStatus {
   state: string | null;
   reachable: boolean;
   device_name: string | null;
+  energy: SmartPlugEnergy | null;
 }
 
 export interface SmartPlugTestResult {

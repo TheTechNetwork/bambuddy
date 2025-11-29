@@ -65,6 +65,10 @@ class ArchiveResponse(BaseModel):
     photos: list | None
     failure_reason: str | None
 
+    # Energy tracking
+    energy_kwh: float | None = None
+    energy_cost: float | None = None
+
     created_at: datetime
 
     class Config:
@@ -83,6 +87,9 @@ class ArchiveStats(BaseModel):
     # Time accuracy stats
     average_time_accuracy: float | None = None  # Average across all prints with data
     time_accuracy_by_printer: dict | None = None  # Per-printer accuracy
+    # Energy stats
+    total_energy_kwh: float = 0.0
+    total_energy_cost: float = 0.0
 
 
 class ProjectPageImage(BaseModel):
