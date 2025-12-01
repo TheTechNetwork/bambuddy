@@ -2,6 +2,7 @@ export default {
   // Navigation
   nav: {
     printers: 'Printers',
+    control: 'Control',
     archives: 'Archives',
     queue: 'Queue',
     stats: 'Statistics',

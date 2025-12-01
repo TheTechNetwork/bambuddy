@@ -523,6 +523,25 @@ export interface UpdateStatus {
   error: string | null;
 }
 
+// Printer Control types
+export interface ControlResponse {
+  success: boolean;
+  message: string;
+}
+
+export interface ConfirmationRequired {
+  requires_confirmation: boolean;
+  token: string;
+  warning: string;
+  expires_in: number;
+}
+
+export type ControlResult = ControlResponse | ConfirmationRequired;
+
+export function isConfirmationRequired(result: ControlResult): result is ConfirmationRequired {
+  return 'requires_confirmation' in result && result.requires_confirmation === true;
+}
+
 // Maintenance types
 export interface MaintenanceType {
   id: number;
@@ -1045,4 +1064,85 @@ export const api = {
       `/maintenance/printers/${printerId}/hours?total_hours=${totalHours}`,
       { method: 'PATCH' }
     ),
+
+  // Printer Control
+  pausePrint: (printerId: number) =>
+    request<ControlResponse>(`/printers/${printerId}/control/pause`, { method: 'POST' }),
+  resumePrint: (printerId: number) =>
+    request<ControlResponse>(`/printers/${printerId}/control/resume`, { method: 'POST' }),
+  stopPrint: (printerId: number, confirmToken?: string) =>
+    request<ControlResult>(`/printers/${printerId}/control/stop`, {
+      method: 'POST',
+      body: JSON.stringify({ confirm_token: confirmToken }),
+    }),
+  setBedTemperature: (printerId: number, target: number, confirmToken?: string) =>
+    request<ControlResult>(`/printers/${printerId}/control/temperature/bed`, {
+      method: 'POST',
+      body: JSON.stringify({ target, confirm_token: confirmToken }),
+    }),
+  setNozzleTemperature: (printerId: number, target: number, nozzle = 0, confirmToken?: string) =>
+    request<ControlResult>(`/printers/${printerId}/control/temperature/nozzle`, {
+      method: 'POST',
+      body: JSON.stringify({ target, nozzle, confirm_token: confirmToken }),
+    }),
+  setPrintSpeed: (printerId: number, mode: number) =>
+    request<ControlResponse>(`/printers/${printerId}/control/speed`, {
+      method: 'POST',
+      body: JSON.stringify({ mode }),
+    }),
+  setPartFan: (printerId: number, speed: number) =>
+    request<ControlResponse>(`/printers/${printerId}/control/fan/part`, {
+      method: 'POST',
+      body: JSON.stringify({ speed }),
+    }),
+  setAuxFan: (printerId: number, speed: number) =>
+    request<ControlResponse>(`/printers/${printerId}/control/fan/aux`, {
+      method: 'POST',
+      body: JSON.stringify({ speed }),
+    }),
+  setChamberFan: (printerId: number, speed: number) =>
+    request<ControlResponse>(`/printers/${printerId}/control/fan/chamber`, {
+      method: 'POST',
+      body: JSON.stringify({ speed }),
+    }),
+  setChamberLight: (printerId: number, on: boolean) =>
+    request<ControlResponse>(`/printers/${printerId}/control/light`, {
+      method: 'POST',
+      body: JSON.stringify({ on }),
+    }),
+  homeAxes: (printerId: number, axes = 'XYZ', confirmToken?: string) =>
+    request<ControlResult>(`/printers/${printerId}/control/home`, {
+      method: 'POST',
+      body: JSON.stringify({ axes, confirm_token: confirmToken }),
+    }),
+  moveAxis: (printerId: number, axis: string, distance: number, speed = 3000, confirmToken?: string) =>
+    request<ControlResult>(`/printers/${printerId}/control/move`, {
+      method: 'POST',
+      body: JSON.stringify({ axis, distance, speed, confirm_token: confirmToken }),
+    }),
+  disableMotors: (printerId: number, confirmToken?: string) =>
+    request<ControlResult>(`/printers/${printerId}/control/motors/disable`, {
+      method: 'POST',
+      body: JSON.stringify({ confirm_token: confirmToken }),
+    }),
+  enableMotors: (printerId: number) =>
+    request<ControlResponse>(`/printers/${printerId}/control/motors/enable`, { method: 'POST' }),
+  amsLoadFilament: (printerId: number, trayId: number) =>
+    request<ControlResponse>(`/printers/${printerId}/control/ams/load`, {
+      method: 'POST',
+      body: JSON.stringify({ tray_id: trayId }),
+    }),
+  amsUnloadFilament: (printerId: number) =>
+    request<ControlResponse>(`/printers/${printerId}/control/ams/unload`, { method: 'POST' }),
+  sendGcode: (printerId: number, command: string, confirmToken?: string) =>
+    request<ControlResult>(`/printers/${printerId}/control/gcode`, {
+      method: 'POST',
+      body: JSON.stringify({ command, confirm_token: confirmToken }),
+    }),
+  getCameraStreamUrl: (printerId: number, fps = 10) =>
+    `${API_BASE}/printers/${printerId}/camera/stream?fps=${fps}`,
+  getCameraSnapshotUrl: (printerId: number) =>
+    `${API_BASE}/printers/${printerId}/camera/snapshot`,
+  testCameraConnection: (printerId: number) =>
+    request<{ success: boolean; message?: string; error?: string }>(`/printers/${printerId}/camera/test`),
 };

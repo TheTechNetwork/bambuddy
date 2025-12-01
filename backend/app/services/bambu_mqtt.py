@@ -840,3 +840,307 @@ class BambuMQTTClient:
         # Use QoS 1 for reliable delivery (at least once)
         self._client.publish(self.topic_publish, command_json, qos=1)
         return True
+
+    # =========================================================================
+    # Printer Control Commands
+    # =========================================================================
+
+    def pause_print(self) -> bool:
+        """Pause the current print job."""
+        if not self._client or not self.state.connected:
+            logger.warning(f"[{self.serial_number}] Cannot pause print: not connected")
+            return False
+
+        command = {
+            "print": {
+                "command": "pause",
+                "sequence_id": "0"
+            }
+        }
+        self._client.publish(self.topic_publish, json.dumps(command), qos=1)
+        logger.info(f"[{self.serial_number}] Sent pause print command")
+        return True
+
+    def resume_print(self) -> bool:
+        """Resume a paused print job."""
+        if not self._client or not self.state.connected:
+            logger.warning(f"[{self.serial_number}] Cannot resume print: not connected")
+            return False
+
+        command = {
+            "print": {
+                "command": "resume",
+                "sequence_id": "0"
+            }
+        }
+        self._client.publish(self.topic_publish, json.dumps(command), qos=1)
+        logger.info(f"[{self.serial_number}] Sent resume print command")
+        return True
+
+    def send_gcode(self, gcode: str) -> bool:
+        """Send G-code command(s) to the printer.
+
+        Multiple commands can be separated by newlines.
+
+        Args:
+            gcode: G-code command(s) to send
+
+        Returns:
+            True if command was sent, False otherwise
+        """
+        if not self._client or not self.state.connected:
+            logger.warning(f"[{self.serial_number}] Cannot send G-code: not connected")
+            return False
+
+        self._sequence_id += 1
+        command = {
+            "print": {
+                "command": "gcode_line",
+                "param": gcode,
+                "sequence_id": str(self._sequence_id)
+            }
+        }
+        self._client.publish(self.topic_publish, json.dumps(command))
+        logger.debug(f"[{self.serial_number}] Sent G-code: {gcode[:50]}...")
+        return True
+
+    def set_bed_temperature(self, target: int) -> bool:
+        """Set the bed target temperature.
+
+        Args:
+            target: Target temperature in Celsius (0 to turn off)
+
+        Returns:
+            True if command was sent, False otherwise
+        """
+        # Use M140 for non-blocking (preferred when not waiting)
+        # Note: P1/A1 series with newer firmware may need M190 (blocking)
+        return self.send_gcode(f"M140 S{target}")
+
+    def set_nozzle_temperature(self, target: int, nozzle: int = 0) -> bool:
+        """Set the nozzle target temperature.
+
+        Args:
+            target: Target temperature in Celsius (0 to turn off)
+            nozzle: Nozzle index (0 for primary, 1 for secondary on H2D)
+
+        Returns:
+            True if command was sent, False otherwise
+        """
+        # Use M104 for non-blocking
+        # For dual nozzle (H2D), T parameter selects the tool
+        if nozzle == 0:
+            return self.send_gcode(f"M104 S{target}")
+        else:
+            return self.send_gcode(f"M104 T{nozzle} S{target}")
+
+    def set_print_speed(self, mode: int) -> bool:
+        """Set the print speed mode.
+
+        Args:
+            mode: Speed mode (1=silent, 2=standard, 3=sport, 4=ludicrous)
+
+        Returns:
+            True if command was sent, False otherwise
+        """
+        if not self._client or not self.state.connected:
+            logger.warning(f"[{self.serial_number}] Cannot set print speed: not connected")
+            return False
+
+        if mode not in (1, 2, 3, 4):
+            logger.warning(f"[{self.serial_number}] Invalid speed mode: {mode}")
+            return False
+
+        command = {
+            "print": {
+                "command": "print_speed",
+                "param": str(mode),
+                "sequence_id": "0"
+            }
+        }
+        self._client.publish(self.topic_publish, json.dumps(command))
+        logger.info(f"[{self.serial_number}] Set print speed mode to {mode}")
+        return True
+
+    def set_fan_speed(self, fan: int, speed: int) -> bool:
+        """Set fan speed.
+
+        Args:
+            fan: Fan index (1=part cooling, 2=auxiliary, 3=chamber)
+            speed: Speed 0-255 (0=off, 255=full)
+
+        Returns:
+            True if command was sent, False otherwise
+        """
+        if fan not in (1, 2, 3):
+            logger.warning(f"[{self.serial_number}] Invalid fan index: {fan}")
+            return False
+
+        speed = max(0, min(255, speed))  # Clamp to 0-255
+        return self.send_gcode(f"M106 P{fan} S{speed}")
+
+    def set_part_fan(self, speed: int) -> bool:
+        """Set part cooling fan speed (0-255)."""
+        return self.set_fan_speed(1, speed)
+
+    def set_aux_fan(self, speed: int) -> bool:
+        """Set auxiliary fan speed (0-255)."""
+        return self.set_fan_speed(2, speed)
+
+    def set_chamber_fan(self, speed: int) -> bool:
+        """Set chamber fan speed (0-255)."""
+        return self.set_fan_speed(3, speed)
+
+    def set_chamber_light(self, on: bool) -> bool:
+        """Turn chamber light on or off.
+
+        Args:
+            on: True to turn on, False to turn off
+
+        Returns:
+            True if command was sent, False otherwise
+        """
+        if not self._client or not self.state.connected:
+            logger.warning(f"[{self.serial_number}] Cannot set chamber light: not connected")
+            return False
+
+        command = {
+            "system": {
+                "command": "ledctrl",
+                "led_node": "chamber_light",
+                "led_mode": "on" if on else "off",
+                "led_on_time": 500,
+                "led_off_time": 500,
+                "loop_times": 0,
+                "interval_time": 0,
+                "sequence_id": "0"
+            }
+        }
+        self._client.publish(self.topic_publish, json.dumps(command))
+        logger.info(f"[{self.serial_number}] Set chamber light {'on' if on else 'off'}")
+        return True
+
+    def home_axes(self, axes: str = "XYZ") -> bool:
+        """Home the specified axes.
+
+        Args:
+            axes: Axes to home (e.g., "XYZ", "X", "XY", "Z")
+
+        Returns:
+            True if command was sent, False otherwise
+        """
+        # G28 homes all axes, G28 X Y Z homes specific axes
+        axes_param = " ".join(axes.upper())
+        return self.send_gcode(f"G28 {axes_param}")
+
+    def move_axis(self, axis: str, distance: float, speed: int = 3000) -> bool:
+        """Move an axis by a relative distance.
+
+        Args:
+            axis: Axis to move ("X", "Y", or "Z")
+            distance: Distance to move in mm (positive or negative)
+            speed: Movement speed in mm/min
+
+        Returns:
+            True if command was sent, False otherwise
+        """
+        axis = axis.upper()
+        if axis not in ("X", "Y", "Z"):
+            logger.warning(f"[{self.serial_number}] Invalid axis: {axis}")
+            return False
+
+        # G91 = relative mode, G0 = rapid move, G90 = back to absolute
+        gcode = f"G91\nG0 {axis}{distance:.2f} F{speed}\nG90"
+        return self.send_gcode(gcode)
+
+    def disable_motors(self) -> bool:
+        """Disable all stepper motors.
+
+        Warning: This will cause the printer to lose its position.
+        A homing operation will be required before printing.
+
+        Returns:
+            True if command was sent, False otherwise
+        """
+        return self.send_gcode("M18")
+
+    def enable_motors(self) -> bool:
+        """Enable all stepper motors.
+
+        Returns:
+            True if command was sent, False otherwise
+        """
+        return self.send_gcode("M17")
+
+    def ams_load_filament(self, tray_id: int) -> bool:
+        """Load filament from a specific AMS tray.
+
+        Args:
+            tray_id: Tray ID (0-15 for AMS slots, or 254 for external spool)
+
+        Returns:
+            True if command was sent, False otherwise
+        """
+        if not self._client or not self.state.connected:
+            logger.warning(f"[{self.serial_number}] Cannot load filament: not connected")
+            return False
+
+        command = {
+            "print": {
+                "command": "ams_change_filament",
+                "target": tray_id,
+                "sequence_id": "0"
+            }
+        }
+        self._client.publish(self.topic_publish, json.dumps(command))
+        logger.info(f"[{self.serial_number}] Loading filament from tray {tray_id}")
+        return True
+
+    def ams_unload_filament(self) -> bool:
+        """Unload the currently loaded filament.
+
+        Returns:
+            True if command was sent, False otherwise
+        """
+        if not self._client or not self.state.connected:
+            logger.warning(f"[{self.serial_number}] Cannot unload filament: not connected")
+            return False
+
+        command = {
+            "print": {
+                "command": "ams_change_filament",
+                "target": 255,  # 255 = unload
+                "sequence_id": "0"
+            }
+        }
+        self._client.publish(self.topic_publish, json.dumps(command))
+        logger.info(f"[{self.serial_number}] Unloading filament")
+        return True
+
+    def ams_control(self, action: str) -> bool:
+        """Control AMS operations.
+
+        Args:
+            action: "resume", "reset", or "pause"
+
+        Returns:
+            True if command was sent, False otherwise
+        """
+        if not self._client or not self.state.connected:
+            logger.warning(f"[{self.serial_number}] Cannot control AMS: not connected")
+            return False
+
+        if action not in ("resume", "reset", "pause"):
+            logger.warning(f"[{self.serial_number}] Invalid AMS action: {action}")
+            return False
+
+        command = {
+            "print": {
+                "command": "ams_control",
+                "param": action,
+                "sequence_id": "0"
+            }
+        }
+        self._client.publish(self.topic_publish, json.dumps(command))
+        logger.info(f"[{self.serial_number}] AMS control: {action}")
+        return True
