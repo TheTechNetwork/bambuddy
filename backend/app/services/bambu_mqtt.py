@@ -63,6 +63,9 @@ class PrinterState:
     subtask_id: str | None = None
     hms_errors: list = field(default_factory=list)  # List of HMSError
     kprofiles: list = field(default_factory=list)  # List of KProfile
+    sdcard: bool = False  # SD card inserted
+    timelapse: bool = False  # Timelapse recording active
+    ipcam: bool = False  # Live view / camera streaming enabled
 
 
 class BambuMQTTClient:
@@ -169,6 +172,16 @@ class BambuMQTTClient:
                 self._handle_ams_data(payload["ams"])
             except Exception as e:
                 logger.error(f"[{self.serial_number}] Error handling AMS data: {e}")
+
+        # Handle xcam data (camera settings) at top level
+        if "xcam" in payload:
+            xcam_data = payload["xcam"]
+            logger.info(f"[{self.serial_number}] Received xcam data: {xcam_data}")
+            if isinstance(xcam_data, dict):
+                if "ipcam_record" in xcam_data:
+                    self.state.ipcam = xcam_data.get("ipcam_record") == "enable"
+                if "timelapse" in xcam_data:
+                    self.state.timelapse = xcam_data.get("timelapse") == "enable"
 
         if "print" in payload:
             print_data = payload["print"]
@@ -323,6 +336,25 @@ class BambuMQTTClient:
                             module=module,
                             severity=severity if severity > 0 else 3,
                         ))
+
+        # Parse SD card status
+        if "sdcard" in data:
+            self.state.sdcard = data["sdcard"] is True
+
+        # Parse timelapse status (recording active during print)
+        if "timelapse" in data:
+            logger.debug(f"[{self.serial_number}] timelapse field: {data['timelapse']}")
+            self.state.timelapse = data["timelapse"] is True
+
+        # Parse ipcam/live view status
+        if "ipcam" in data:
+            ipcam_data = data["ipcam"]
+            logger.debug(f"[{self.serial_number}] ipcam field: {ipcam_data}")
+            if isinstance(ipcam_data, dict):
+                # Check ipcam_record field for live view status
+                self.state.ipcam = ipcam_data.get("ipcam_record") == "enable"
+            else:
+                self.state.ipcam = ipcam_data is True
 
         # Preserve AMS and vt_tray data when updating raw_data
         ams_data = self.state.raw_data.get("ams")
@@ -1164,4 +1196,69 @@ class BambuMQTTClient:
         }
         self._client.publish(self.topic_publish, json.dumps(command))
         logger.info(f"[{self.serial_number}] AMS control: {action}")
+        return True
+
+    def set_timelapse(self, enable: bool) -> bool:
+        """Enable or disable timelapse recording.
+
+        Args:
+            enable: True to enable, False to disable
+
+        Returns:
+            True if command was sent, False otherwise
+        """
+        if not self._client or not self.state.connected:
+            logger.warning(f"[{self.serial_number}] Cannot set timelapse: not connected")
+            return False
+
+        command = {
+            "pushing": {
+                "command": "pushall",
+                "sequence_id": "0"
+            }
+        }
+        # First send the timelapse setting
+        timelapse_cmd = {
+            "print": {
+                "command": "gcode_line",
+                "param": f"M981 S{1 if enable else 0} P20000",
+                "sequence_id": "0"
+            }
+        }
+        self._client.publish(self.topic_publish, json.dumps(timelapse_cmd))
+        # Request status update
+        self._client.publish(self.topic_publish, json.dumps(command))
+        logger.info(f"[{self.serial_number}] Set timelapse {'enabled' if enable else 'disabled'}")
+        return True
+
+    def set_liveview(self, enable: bool) -> bool:
+        """Enable or disable live view / camera streaming.
+
+        Args:
+            enable: True to enable, False to disable
+
+        Returns:
+            True if command was sent, False otherwise
+        """
+        if not self._client or not self.state.connected:
+            logger.warning(f"[{self.serial_number}] Cannot set liveview: not connected")
+            return False
+
+        command = {
+            "xcam": {
+                "command": "ipcam_record_set",
+                "control": "enable" if enable else "disable",
+                "sequence_id": "0"
+            }
+        }
+        self._client.publish(self.topic_publish, json.dumps(command))
+        # Request status update
+        pushall = {
+            "pushing": {
+                "command": "pushall",
+                "sequence_id": "0"
+            }
+        }
+        self._client.publish(self.topic_publish, json.dumps(pushall))
+        logger.info(f"[{self.serial_number}] Set liveview {'enabled' if enable else 'disabled'}")
         return True

@@ -76,3 +76,6 @@ class PrinterStatus(BaseModel):
     ams: list[AMSUnit] = []
     ams_exists: bool = False
     vt_tray: AMSTray | None = None  # Virtual tray / external spool
+    sdcard: bool = False  # SD card inserted
+    timelapse: bool = False  # Timelapse recording active
+    ipcam: bool = False  # Live view enabled

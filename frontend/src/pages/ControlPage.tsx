@@ -10,11 +10,13 @@ import { JogPad } from '../components/control/JogPad';
 import { BedControls } from '../components/control/BedControls';
 import { ExtruderControls } from '../components/control/ExtruderControls';
 import { AMSSectionDual } from '../components/control/AMSSectionDual';
+import { CameraSettingsModal } from '../components/control/CameraSettingsModal';
 import { Loader2, WifiOff, Video, Webcam, Settings } from 'lucide-react';
 
 export function ControlPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedPrinterId, setSelectedPrinterId] = useState<number | null>(null);
+  const [showCameraSettings, setShowCameraSettings] = useState(false);
 
   // Fetch all printers
   const { data: printers, isLoading: loadingPrinters } = useQuery({
@@ -91,9 +93,8 @@ export function ControlPage() {
       {/* Printer Tabs */}
       <div className="bg-bambu-dark-secondary border-b border-bambu-dark-tertiary">
         <div className="flex overflow-x-auto">
-          {printers.map((printer) => {
+          {printers.filter((p) => statuses?.[p.id]?.connected).map((printer) => {
             const status = statuses?.[printer.id];
-            const isConnected = status?.connected ?? false;
             const isSelected = printer.id === selectedPrinterId;
 
             return (
@@ -106,11 +107,7 @@ export function ControlPage() {
                     : 'border-transparent text-bambu-gray hover:text-white hover:bg-bambu-dark-tertiary'
                 }`}
               >
-                <span
-                  className={`w-2 h-2 rounded-full ${
-                    isConnected ? 'bg-bambu-green' : 'bg-red-500'
-                  }`}
-                />
+                <span className="w-2 h-2 rounded-full bg-bambu-green" />
                 {printer.name}
                 {status?.state && status.state !== 'IDLE' && (
                   <span className="text-xs px-2 py-0.5 rounded bg-bambu-dark-tertiary">
@@ -130,16 +127,19 @@ export function ControlPage() {
           <div className="flex-1 flex flex-col bg-bambu-dark">
             {/* Camera Header Icons - same height as Control header */}
             <div className="flex items-center justify-end gap-2 px-3 py-2.5 bg-bambu-dark-secondary border-b border-bambu-dark-tertiary min-h-[44px]">
-              <button className="p-1.5 rounded hover:bg-bambu-dark-tertiary text-bambu-gray hover:text-white">
-                <img src="/icons/micro-sd.svg" alt="SD Card" className="w-4 h-4 icon-theme" />
+              <button className={`p-1.5 rounded hover:bg-bambu-dark-tertiary ${selectedStatus?.sdcard ? 'text-bambu-green' : 'text-bambu-gray hover:text-white'}`}>
+                <img src="/icons/micro-sd.svg" alt="SD Card" className={`w-4 h-4 ${selectedStatus?.sdcard ? 'icon-green' : 'icon-theme'}`} />
               </button>
-              <button className="p-1.5 rounded hover:bg-bambu-dark-tertiary text-bambu-gray hover:text-white">
+              <button className={`p-1.5 rounded hover:bg-bambu-dark-tertiary ${selectedStatus?.timelapse ? 'text-red-500' : 'text-bambu-gray hover:text-white'}`}>
                 <Video className="w-4 h-4" />
               </button>
-              <button className="p-1.5 rounded hover:bg-bambu-dark-tertiary text-bambu-gray hover:text-white">
+              <button className={`p-1.5 rounded hover:bg-bambu-dark-tertiary ${selectedStatus?.ipcam ? 'text-bambu-green' : 'text-bambu-gray hover:text-white'}`}>
                 <Webcam className="w-4 h-4" />
               </button>
-              <button className="p-1.5 rounded hover:bg-bambu-dark-tertiary text-bambu-gray hover:text-white">
+              <button
+                onClick={() => setShowCameraSettings(true)}
+                className="p-1.5 rounded hover:bg-bambu-dark-tertiary text-bambu-gray hover:text-white"
+              >
                 <Settings className="w-4 h-4" />
               </button>
             </div>
@@ -237,6 +237,15 @@ export function ControlPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Camera Settings Modal */}
+      {showCameraSettings && selectedPrinter && (
+        <CameraSettingsModal
+          printerId={selectedPrinter.id}
+          status={selectedStatus}
+          onClose={() => setShowCameraSettings(false)}
+        />
       )}
     </div>
   );

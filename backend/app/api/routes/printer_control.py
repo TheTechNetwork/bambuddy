@@ -113,6 +113,10 @@ class LightRequest(BaseModel):
     on: bool = Field(..., description="Light state: true=on, false=off")
 
 
+class CameraSettingRequest(BaseModel):
+    enable: bool = Field(..., description="Enable or disable the setting")
+
+
 class HomeRequest(ConfirmableRequest):
     axes: str = Field(default="XYZ", description="Axes to home (e.g., 'XYZ', 'X', 'XY', 'Z')")
 
@@ -552,4 +556,42 @@ async def send_gcode(
     return ControlResponse(
         success=success,
         message="G-code sent" if success else "Failed to send G-code"
+    )
+
+
+# =============================================================================
+# Camera Settings Endpoints
+# =============================================================================
+
+@router.post("/{printer_id}/control/camera/timelapse", response_model=ControlResponse)
+async def set_timelapse(
+    printer_id: int,
+    request: CameraSettingRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Enable or disable timelapse recording."""
+    await get_printer_or_404(printer_id, db)
+    client = get_mqtt_client_or_503(printer_id)
+
+    success = client.set_timelapse(request.enable)
+    return ControlResponse(
+        success=success,
+        message=f"Timelapse {'enabled' if request.enable else 'disabled'}" if success else "Failed to set timelapse"
+    )
+
+
+@router.post("/{printer_id}/control/camera/liveview", response_model=ControlResponse)
+async def set_liveview(
+    printer_id: int,
+    request: CameraSettingRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Enable or disable live view / camera streaming."""
+    await get_printer_or_404(printer_id, db)
+    client = get_mqtt_client_or_503(printer_id)
+
+    success = client.set_liveview(request.enable)
+    return ControlResponse(
+        success=success,
+        message=f"Live view {'enabled' if request.enable else 'disabled'}" if success else "Failed to set live view"
     )

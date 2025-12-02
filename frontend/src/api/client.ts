@@ -80,6 +80,9 @@ export interface PrinterStatus {
   ams: AMSUnit[];
   ams_exists: boolean;
   vt_tray: AMSTray | null;  // Virtual tray / external spool
+  sdcard: boolean;  // SD card inserted
+  timelapse: boolean;  // Timelapse recording active
+  ipcam: boolean;  // Live view enabled
 }
 
 export interface PrinterCreate {
@@ -1163,4 +1166,14 @@ export const api = {
     `${API_BASE}/printers/${printerId}/camera/snapshot`,
   testCameraConnection: (printerId: number) =>
     request<{ success: boolean; message?: string; error?: string }>(`/printers/${printerId}/camera/test`),
+  setTimelapse: (printerId: number, enable: boolean) =>
+    request<ControlResponse>(`/printers/${printerId}/control/camera/timelapse`, {
+      method: 'POST',
+      body: JSON.stringify({ enable }),
+    }),
+  setLiveview: (printerId: number, enable: boolean) =>
+    request<ControlResponse>(`/printers/${printerId}/control/camera/liveview`, {
+      method: 'POST',
+      body: JSON.stringify({ enable }),
+    }),
 };

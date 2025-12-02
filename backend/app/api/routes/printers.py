@@ -201,6 +201,9 @@ async def get_printer_status(printer_id: int, db: AsyncSession = Depends(get_db)
         ams=ams_units,
         ams_exists=ams_exists,
         vt_tray=vt_tray,
+        sdcard=state.sdcard,
+        timelapse=state.timelapse,
+        ipcam=state.ipcam,
     )
 
 

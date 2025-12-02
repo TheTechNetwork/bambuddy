@@ -102,6 +102,12 @@ body {
   opacity: 0.4;
 }
 
+/* Green-colored icon for active status indicators */
+.icon-green {
+  filter: invert(48%) sepia(89%) saturate(459%) hue-rotate(93deg) brightness(95%) contrast(92%);
+  opacity: 1;
+}
+
 /* Jogpad theme styling - darken background in dark mode */
 .jogpad-theme {
   /* Light mode - normal */
