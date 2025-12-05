@@ -125,6 +125,10 @@ class PrinterState:
     # mc_print_sub_stage - filament change step indicator from print.mc_print_sub_stage
     # Used by OrcaSlicer/BambuStudio to track progress during filament load/unload
     mc_print_sub_stage: int = 0
+    # AMS mapping for dual nozzle: which slot is active (from ams.ams_exist_bits/tray_exist_bits)
+    ams_mapping: list = field(default_factory=list)
+    # Per-AMS extruder map: {ams_id: extruder_id} where 0=right, 1=left
+    ams_extruder_map: dict = field(default_factory=dict)
 
 
 # Stage name mapping from BambuStudio DeviceManager.cpp
@@ -692,13 +696,45 @@ class BambuMQTTClient:
                                 f"(matches incoming slot {parsed_tray_now})"
                             )
                         else:
-                            # No match or no existing global ID, use slot number as-is
-                            # This happens when filament was loaded before app started or via printer touchscreen
-                            logger.debug(
-                                f"[{self.serial_number}] H2D tray_now: no pending_tray_target, "
-                                f"using slot {parsed_tray_now} as global ID (may be incorrect for H2D)"
-                            )
-                            self.state.tray_now = parsed_tray_now
+                            # No match or no existing global ID - find active AMS from info field
+                            # For H2D, the AMS with info starting with "1" is actively feeding
+                            # (info starting with "2" means idle)
+                            inferred_global_id = None
+                            active_ams_id = None
+
+                            # Use ams_list from the current message (already extracted above at line 625)
+                            for ams_unit in ams_list:
+                                ams_id = ams_unit.get("id")
+                                if ams_id is None:
+                                    continue
+                                try:
+                                    ams_id = int(ams_id)
+                                except (ValueError, TypeError):
+                                    continue
+
+                                # Check if this AMS is active (info starts with "1")
+                                info = ams_unit.get("info")
+                                if info is not None:
+                                    info_str = str(info)
+                                    if info_str.startswith("1"):
+                                        active_ams_id = ams_id
+                                        inferred_global_id = ams_id * 4 + parsed_tray_now
+                                        logger.info(
+                                            f"[{self.serial_number}] H2D tray_now: "
+                                            f"AMS {ams_id} is active (info={info_str}), "
+                                            f"slot {parsed_tray_now} -> global ID {inferred_global_id}"
+                                        )
+                                        break
+
+                            if inferred_global_id is not None:
+                                self.state.tray_now = inferred_global_id
+                            else:
+                                # Fallback: use slot number as-is (may be incorrect for H2D)
+                                logger.debug(
+                                    f"[{self.serial_number}] H2D tray_now: no active AMS found (no info starting with '1'), "
+                                    f"using slot {parsed_tray_now} as global ID (may be incorrect for H2D)"
+                                )
+                                self.state.tray_now = parsed_tray_now
                 else:
                     # tray_now > 3 means it's already a global ID, or 255 means unloaded
                     # Note: Do NOT clear pending_tray_target on tray_now=255 here.
@@ -747,6 +783,7 @@ class BambuMQTTClient:
                     pass
         if ams_extruder_map:
             self.state.raw_data["ams_extruder_map"] = ams_extruder_map
+            self.state.ams_extruder_map = ams_extruder_map  # Also set on state for inference logic
             logger.debug(f"[{self.serial_number}] ams_extruder_map: {ams_extruder_map}")
 
         # Create a hash of relevant AMS data to detect changes
@@ -2425,14 +2462,21 @@ class BambuMQTTClient:
             logger.warning(f"[{self.serial_number}] Cannot unload filament: not connected")
             return False
 
+        # Build unload command with all required fields (per HA-Bambulab integration)
         command = {
             "print": {
                 "command": "ams_change_filament",
                 "target": 255,  # 255 = unload
+                "ams_id": 255,
+                "slot_id": 0,
+                "curr_temp": 0,
+                "tar_temp": 0,
                 "sequence_id": "0"
             }
         }
-        self._client.publish(self.topic_publish, json.dumps(command))
+        command_json = json.dumps(command)
+        logger.info(f"[{self.serial_number}] Publishing ams_change_filament (unload) command: {command_json}")
+        self._client.publish(self.topic_publish, command_json)
         logger.info(f"[{self.serial_number}] Unloading filament")
 
         # Clear tracked load request since we're unloading
