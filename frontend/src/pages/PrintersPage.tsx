@@ -38,6 +38,26 @@ function formatTime(seconds: number): string {
   return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
 }
 
+function getPrinterImage(model: string | null | undefined): string {
+  if (!model) return '/img/printers/default.png';
+
+  const modelLower = model.toLowerCase().replace(/\s+/g, '');
+
+  // Map model names to image files
+  if (modelLower.includes('x1e')) return '/img/printers/x1e.png';
+  if (modelLower.includes('x1c') || modelLower.includes('x1carbon')) return '/img/printers/x1c.png';
+  if (modelLower.includes('x1')) return '/img/printers/x1c.png';
+  if (modelLower.includes('h2d')) return '/img/printers/h2d.png';
+  if (modelLower.includes('h2c') || modelLower.includes('h2s')) return '/img/printers/h2d.png';
+  if (modelLower.includes('p2s')) return '/img/printers/p1s.png';
+  if (modelLower.includes('p1s')) return '/img/printers/p1s.png';
+  if (modelLower.includes('p1p')) return '/img/printers/p1p.png';
+  if (modelLower.includes('a1mini')) return '/img/printers/a1mini.png';
+  if (modelLower.includes('a1')) return '/img/printers/a1.png';
+
+  return '/img/printers/default.png';
+}
+
 function getWifiStrength(rssi: number | null | undefined): { label: string; color: string; bars: number } {
   if (rssi == null) return { label: '', color: 'text-bambu-gray', bars: 0 };
   if (rssi >= -50) return { label: 'Excellent', color: 'text-bambu-green', bars: 4 };
@@ -196,17 +216,25 @@ function PrinterCard({
       <CardContent>
         {/* Header */}
         <div className="flex items-start justify-between mb-4">
-          <div>
-            <h3 className="text-lg font-semibold text-white">{printer.name}</h3>
-            <p className="text-sm text-bambu-gray">
-              {printer.model || 'Unknown Model'}
-              {maintenanceInfo && maintenanceInfo.total_print_hours > 0 && (
-                <span className="ml-2 text-bambu-gray">
-                  <Clock className="w-3 h-3 inline-block mr-1" />
-                  {Math.round(maintenanceInfo.total_print_hours)}h
-                </span>
-              )}
-            </p>
+          <div className="flex items-center gap-3">
+            {/* Printer Model Image */}
+            <img
+              src={getPrinterImage(printer.model)}
+              alt={printer.model || 'Printer'}
+              className="w-14 h-14 object-contain rounded-lg bg-bambu-dark"
+            />
+            <div>
+              <h3 className="text-lg font-semibold text-white">{printer.name}</h3>
+              <p className="text-sm text-bambu-gray">
+                {printer.model || 'Unknown Model'}
+                {maintenanceInfo && maintenanceInfo.total_print_hours > 0 && (
+                  <span className="ml-2 text-bambu-gray">
+                    <Clock className="w-3 h-3 inline-block mr-1" />
+                    {Math.round(maintenanceInfo.total_print_hours)}h
+                  </span>
+                )}
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {/* Connection status badge */}
