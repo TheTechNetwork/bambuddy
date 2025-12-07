@@ -2,7 +2,6 @@ export default {
   // Navigation
   nav: {
     printers: 'Drucker',
-    control: 'Steuerung',
     archives: 'Archiv',
     queue: 'Warteschlange',
     stats: 'Statistiken',
