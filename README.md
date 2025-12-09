@@ -19,7 +19,7 @@
   <a href="#-features">Features</a> •
   <a href="#-screenshots">Screenshots</a> •
   <a href="#-quick-start">Quick Start</a> •
-  <a href="https://github.com/maziggy/bambuddy/wiki">Documentation</a> •
+  <a href="https://github.com/maziggy/bambuddy-wiki">Documentation</a> •
   <a href="#-contributing">Contributing</a>
 </p>
 
@@ -150,7 +150,7 @@ uvicorn backend.app.main:app --host 0.0.0.0 --port 8000
 
 Open **http://localhost:8000** and add your printer!
 
-> **Need detailed instructions?** See the [Installation Guide](https://github.com/maziggy/bambuddy/wiki/Installation)
+> **Need detailed instructions?** See the [Installation Guide](https://github.com/maziggy/bambuddy-wiki/blob/main/Installation.md)
 
 ### Enabling LAN Mode
 
@@ -163,13 +163,13 @@ Open **http://localhost:8000** and add your printer!
 
 ## 📚 Documentation
 
-Full documentation available in the **[Wiki](https://github.com/maziggy/bambuddy/wiki)**:
+Full documentation available in the **[Wiki](https://github.com/maziggy/bambuddy-wiki)**:
 
-- [Installation](https://github.com/maziggy/bambuddy/wiki/Installation) — All installation methods
-- [Getting Started](https://github.com/maziggy/bambuddy/wiki/Getting-Started) — First printer setup
-- [Features](https://github.com/maziggy/bambuddy/wiki/Home#feature-documentation) — Detailed feature guides
-- [Troubleshooting](https://github.com/maziggy/bambuddy/wiki/Troubleshooting) — Common issues & solutions
-- [API Reference](https://github.com/maziggy/bambuddy/wiki/API-Reference) — REST API documentation
+- [Installation](https://github.com/maziggy/bambuddy-wiki/blob/main/Installation.md) — All installation methods
+- [Getting Started](https://github.com/maziggy/bambuddy-wiki/blob/main/Getting-Started.md) — First printer setup
+- [Features](https://github.com/maziggy/bambuddy-wiki#feature-documentation) — Detailed feature guides
+- [Troubleshooting](https://github.com/maziggy/bambuddy-wiki/blob/main/Troubleshooting.md) — Common issues & solutions
+- [API Reference](https://github.com/maziggy/bambuddy-wiki/blob/main/API-Reference.md) — REST API documentation
 
 ---
 
@@ -242,5 +242,5 @@ MIT License — see [LICENSE](LICENSE) for details.
   <br><br>
   <a href="https://github.com/maziggy/bambuddy/issues">Report Bug</a> •
   <a href="https://github.com/maziggy/bambuddy/issues">Request Feature</a> •
-  <a href="https://github.com/maziggy/bambuddy/wiki">Documentation</a>
+  <a href="https://github.com/maziggy/bambuddy-wiki">Documentation</a>
 </p>
