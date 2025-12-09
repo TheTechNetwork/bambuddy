@@ -1,0 +1,16 @@
+services:
+  bambuddy:
+    build: .
+    container_name: bambuddy
+    ports:
+      - "8000:8000"
+    volumes:
+      - bambuddy_data:/app/data
+      - bambuddy_logs:/app/logs
+    environment:
+      - TZ=Europe/Berlin
+    restart: unless-stopped
+
+volumes:
+  bambuddy_data:
+  bambuddy_logs:
