@@ -432,6 +432,7 @@ export interface AppSettings {
   ams_humidity_fair: number;  // <= this is orange, > is red
   ams_temp_good: number;      // <= this is green/blue
   ams_temp_fair: number;      // <= this is orange, > is red
+  ams_history_retention_days: number;  // days to keep AMS sensor history
   // Date/time format settings
   date_format: 'system' | 'us' | 'eu' | 'iso';
   time_format: 'system' | '12h' | '24h';
@@ -1893,4 +1894,28 @@ export const api = {
     }),
   deleteAPIKey: (id: number) =>
     request<{ message: string }>(`/api-keys/${id}`, { method: 'DELETE' }),
+
+  // AMS History
+  getAMSHistory: (printerId: number, amsId: number, hours = 24) =>
+    request<AMSHistoryResponse>(`/ams-history/${printerId}/${amsId}?hours=${hours}`),
 };
+
+// AMS History types
+export interface AMSHistoryPoint {
+  recorded_at: string;
+  humidity: number | null;
+  humidity_raw: number | null;
+  temperature: number | null;
+}
+
+export interface AMSHistoryResponse {
+  printer_id: number;
+  ams_id: number;
+  data: AMSHistoryPoint[];
+  min_humidity: number | null;
+  max_humidity: number | null;
+  avg_humidity: number | null;
+  min_temperature: number | null;
+  max_temperature: number | null;
+  avg_temperature: number | null;
+}

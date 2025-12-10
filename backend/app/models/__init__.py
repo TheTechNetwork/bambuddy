@@ -9,6 +9,7 @@ from backend.app.models.notification_template import NotificationTemplate
 from backend.app.models.notification import NotificationLog
 from backend.app.models.project import Project
 from backend.app.models.api_key import APIKey
+from backend.app.models.ams_history import AMSSensorHistory
 
 __all__ = [
     "Printer",
@@ -24,4 +25,5 @@ __all__ = [
     "NotificationLog",
     "Project",
     "APIKey",
+    "AMSSensorHistory",
 ]

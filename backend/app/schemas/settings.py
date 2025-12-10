@@ -28,6 +28,7 @@ class AppSettings(BaseModel):
     ams_humidity_fair: int = Field(default=60, description="Humidity threshold for fair (orange): <= this value, > is red")
     ams_temp_good: float = Field(default=28.0, description="Temperature threshold for good (blue): <= this value")
     ams_temp_fair: float = Field(default=35.0, description="Temperature threshold for fair (orange): <= this value, > is red")
+    ams_history_retention_days: int = Field(default=30, description="Number of days to keep AMS sensor history data")
 
     # Date/time display format
     date_format: str = Field(default="system", description="Date format: system, us, eu, iso")
@@ -56,6 +57,7 @@ class AppSettingsUpdate(BaseModel):
     ams_humidity_fair: int | None = None
     ams_temp_good: float | None = None
     ams_temp_fair: float | None = None
+    ams_history_retention_days: int | None = None
     date_format: str | None = None
     time_format: str | None = None
     default_printer_id: int | None = None

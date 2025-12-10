@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 from pathlib import Path
 from logging.handlers import RotatingFileHandler
@@ -52,9 +52,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from backend.app.core.database import init_db, async_session
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, delete
 from backend.app.core.websocket import ws_manager
-from backend.app.api.routes import printers, archives, websocket, filaments, cloud, smart_plugs, print_queue, kprofiles, notifications, notification_templates, spoolman, updates, maintenance, camera, external_links, projects, api_keys, webhook
+from backend.app.api.routes import printers, archives, websocket, filaments, cloud, smart_plugs, print_queue, kprofiles, notifications, notification_templates, spoolman, updates, maintenance, camera, external_links, projects, api_keys, webhook, ams_history
 from backend.app.api.routes import settings as settings_routes
 from backend.app.services.notification_service import notification_service
 from backend.app.services.printer_manager import (
@@ -949,6 +949,139 @@ async def on_print_complete(printer_id: int, data: dict):
         logging.getLogger(__name__).warning(f"Queue item update failed: {e}")
 
 
+# AMS sensor history recording
+_ams_history_task: asyncio.Task | None = None
+AMS_HISTORY_INTERVAL = 300  # Record every 5 minutes
+AMS_HISTORY_RETENTION_DAYS = 30  # Keep data for 30 days
+_ams_cleanup_counter = 0  # Track recordings to trigger periodic cleanup
+
+
+async def record_ams_history():
+    """Background task to record AMS humidity and temperature data."""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    # Wait a short time for MQTT connections to establish on startup
+    await asyncio.sleep(10)
+
+    while True:
+        try:
+            from backend.app.models.ams_history import AMSSensorHistory
+            from backend.app.models.printer import Printer
+
+            async with async_session() as db:
+                # Get all active printers
+                result = await db.execute(
+                    select(Printer).where(Printer.is_active == True)
+                )
+                printers = result.scalars().all()
+
+                recorded_count = 0
+                for printer in printers:
+                    # Get current state from printer manager
+                    state = printer_manager.get_status(printer.id)
+                    if not state or not state.raw_data:
+                        continue
+
+                    raw_data = state.raw_data
+                    if "ams" not in raw_data or not isinstance(raw_data["ams"], list):
+                        continue
+
+                    # Record data for each AMS unit
+                    for ams_data in raw_data["ams"]:
+                        ams_id = int(ams_data.get("id", 0))
+
+                        # Get humidity (prefer humidity_raw)
+                        humidity_raw = ams_data.get("humidity_raw")
+                        humidity_idx = ams_data.get("humidity")
+                        humidity = None
+                        if humidity_raw is not None:
+                            try:
+                                humidity = float(humidity_raw)
+                            except (ValueError, TypeError):
+                                pass
+                        if humidity is None and humidity_idx is not None:
+                            try:
+                                humidity = float(humidity_idx)
+                            except (ValueError, TypeError):
+                                pass
+
+                        # Get temperature
+                        temperature = None
+                        temp_str = ams_data.get("temp")
+                        if temp_str is not None:
+                            try:
+                                temperature = float(temp_str)
+                            except (ValueError, TypeError):
+                                pass
+
+                        # Skip if no data
+                        if humidity is None and temperature is None:
+                            continue
+
+                        # Record the data point
+                        history = AMSSensorHistory(
+                            printer_id=printer.id,
+                            ams_id=ams_id,
+                            humidity=humidity,
+                            humidity_raw=float(humidity_raw) if humidity_raw else None,
+                            temperature=temperature,
+                        )
+                        db.add(history)
+                        recorded_count += 1
+
+                await db.commit()
+                if recorded_count > 0:
+                    logger.info(f"Recorded {recorded_count} AMS sensor history entries")
+
+                # Periodic cleanup of old data (every ~288 recordings = ~24 hours at 5min interval)
+                global _ams_cleanup_counter
+                _ams_cleanup_counter += 1
+                if _ams_cleanup_counter >= 288:
+                    _ams_cleanup_counter = 0
+                    # Get retention days from settings
+                    from backend.app.models.settings import Settings
+                    result = await db.execute(
+                        select(Settings).where(Settings.key == "ams_history_retention_days")
+                    )
+                    setting = result.scalar_one_or_none()
+                    retention_days = int(setting.value) if setting else AMS_HISTORY_RETENTION_DAYS
+
+                    cutoff = datetime.now() - timedelta(days=retention_days)
+                    result = await db.execute(
+                        delete(AMSSensorHistory).where(AMSSensorHistory.recorded_at < cutoff)
+                    )
+                    await db.commit()
+                    if result.rowcount > 0:
+                        logger.info(f"Cleaned up {result.rowcount} old AMS sensor history entries (older than {retention_days} days)")
+
+            # Wait until next recording interval
+            await asyncio.sleep(AMS_HISTORY_INTERVAL)
+
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.warning(f"AMS history recording failed: {e}")
+            await asyncio.sleep(60)  # Wait a bit before retrying
+
+
+def start_ams_history_recording():
+    """Start the AMS history recording background task."""
+    global _ams_history_task
+    if _ams_history_task is None:
+        _ams_history_task = asyncio.create_task(record_ams_history())
+        logging.getLogger(__name__).info("AMS history recording started")
+
+
+def stop_ams_history_recording():
+    """Stop the AMS history recording background task."""
+    global _ams_history_task
+    if _ams_history_task:
+        _ams_history_task.cancel()
+        _ams_history_task = None
+        logging.getLogger(__name__).info("AMS history recording stopped")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
@@ -991,12 +1124,16 @@ async def lifespan(app: FastAPI):
     # Start the notification digest scheduler
     notification_service.start_digest_scheduler()
 
+    # Start AMS history recording
+    start_ams_history_recording()
+
     yield
 
     # Shutdown
     print_scheduler.stop()
     smart_plug_manager.stop_scheduler()
     notification_service.stop_digest_scheduler()
+    stop_ams_history_recording()
     printer_manager.disconnect_all()
     await close_spoolman_client()
 
@@ -1027,6 +1164,7 @@ app.include_router(external_links.router, prefix=app_settings.api_prefix)
 app.include_router(projects.router, prefix=app_settings.api_prefix)
 app.include_router(api_keys.router, prefix=app_settings.api_prefix)
 app.include_router(webhook.router, prefix=app_settings.api_prefix)
+app.include_router(ams_history.router, prefix=app_settings.api_prefix)
 app.include_router(websocket.router, prefix=app_settings.api_prefix)
 
 

@@ -38,6 +38,7 @@ import { FileManagerModal } from '../components/FileManagerModal';
 import { MQTTDebugModal } from '../components/MQTTDebugModal';
 import { HMSErrorModal } from '../components/HMSErrorModal';
 import { PrinterQueueWidget } from '../components/PrinterQueueWidget';
+import { AMSHistoryModal } from '../components/AMSHistoryModal';
 
 // Nozzle side indicators (Bambu Lab style - square badge with L/R)
 function NozzleBadge({ side }: { side: 'L' | 'R' }) {
@@ -203,9 +204,10 @@ interface HumidityIndicatorProps {
   humidity: number | string;
   goodThreshold?: number;  // <= this is green
   fairThreshold?: number;  // <= this is orange, > is red
+  onClick?: () => void;
 }
 
-function HumidityIndicator({ humidity, goodThreshold = 40, fairThreshold = 60 }: HumidityIndicatorProps) {
+function HumidityIndicator({ humidity, goodThreshold = 40, fairThreshold = 60, onClick }: HumidityIndicatorProps) {
   const humidityValue = typeof humidity === 'string' ? parseInt(humidity, 10) : humidity;
   const good = typeof goodThreshold === 'number' ? goodThreshold : 40;
   const fair = typeof fairThreshold === 'number' ? fairThreshold : 60;
@@ -242,10 +244,15 @@ function HumidityIndicator({ humidity, goodThreshold = 40, fairThreshold = 60 }:
   }
 
   return (
-    <div className="flex items-center justify-end gap-1" title={`Humidity: ${humidityValue}% - ${statusText}`}>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-center justify-end gap-1 ${onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+      title={`Humidity: ${humidityValue}% - ${statusText}${onClick ? ' (click for history)' : ''}`}
+    >
       <DropComponent className="w-3 h-4" />
       <span className="text-xs font-medium tabular-nums w-8 text-right" style={{ color: textColor }}>{humidityValue}%</span>
-    </div>
+    </button>
   );
 }
 
@@ -254,32 +261,42 @@ interface TemperatureIndicatorProps {
   temp: number;
   goodThreshold?: number;  // <= this is blue
   fairThreshold?: number;  // <= this is orange, > is red
+  onClick?: () => void;
 }
 
-function TemperatureIndicator({ temp, goodThreshold = 28, fairThreshold = 35 }: TemperatureIndicatorProps) {
+function TemperatureIndicator({ temp, goodThreshold = 28, fairThreshold = 35, onClick }: TemperatureIndicatorProps) {
   // Ensure thresholds are numbers
   const good = typeof goodThreshold === 'number' ? goodThreshold : 28;
   const fair = typeof fairThreshold === 'number' ? fairThreshold : 35;
 
   let textColor: string;
+  let statusText: string;
   let ThermoComponent: React.FC<{ className?: string }>;
 
   if (temp <= good) {
     textColor = '#22a352'; // Green - good (same as humidity)
+    statusText = 'Good';
     ThermoComponent = ThermometerEmpty;
   } else if (temp <= fair) {
     textColor = '#d4a017'; // Gold - fair (same as humidity)
+    statusText = 'Fair';
     ThermoComponent = ThermometerHalf;
   } else {
     textColor = '#c62828'; // Red - bad (same as humidity)
+    statusText = 'Bad';
     ThermoComponent = ThermometerFull;
   }
 
   return (
-    <span className="flex items-center gap-1" title="Temperature">
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-center gap-1 ${onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+      title={`Temperature: ${temp}°C - ${statusText}${onClick ? ' (click for history)' : ''}`}
+    >
       <ThermoComponent className="w-3 h-4" />
       <span className="tabular-nums w-12 text-right" style={{ color: textColor }}>{temp}°C</span>
-    </span>
+    </button>
   );
 }
 
@@ -507,6 +524,11 @@ function PrinterCard({
   const [showPowerOnConfirm, setShowPowerOnConfirm] = useState(false);
   const [showPowerOffConfirm, setShowPowerOffConfirm] = useState(false);
   const [showHMSModal, setShowHMSModal] = useState(false);
+  const [amsHistoryModal, setAmsHistoryModal] = useState<{
+    amsId: number;
+    amsLabel: string;
+    mode: 'humidity' | 'temperature';
+  } | null>(null);
 
   const { data: status } = useQuery({
     queryKey: ['printerStatus', printer.id],
@@ -1048,6 +1070,11 @@ function PrinterCard({
                                 humidity={ams.humidity}
                                 goodThreshold={amsThresholds?.humidityGood}
                                 fairThreshold={amsThresholds?.humidityFair}
+                                onClick={() => setAmsHistoryModal({
+                                  amsId: ams.id,
+                                  amsLabel: getAmsLabel(ams.id, ams.tray.length),
+                                  mode: 'humidity',
+                                })}
                               />
                             )}
                             {ams.temp != null && (
@@ -1055,6 +1082,11 @@ function PrinterCard({
                                 temp={ams.temp}
                                 goodThreshold={amsThresholds?.tempGood}
                                 fairThreshold={amsThresholds?.tempFair}
+                                onClick={() => setAmsHistoryModal({
+                                  amsId: ams.id,
+                                  amsLabel: getAmsLabel(ams.id, ams.tray.length),
+                                  mode: 'temperature',
+                                })}
                               />
                             )}
                           </div>
@@ -1268,6 +1300,20 @@ function PrinterCard({
           printerName={printer.name}
           errors={status?.hms_errors || []}
           onClose={() => setShowHMSModal(false)}
+        />
+      )}
+
+      {/* AMS History Modal */}
+      {amsHistoryModal && (
+        <AMSHistoryModal
+          isOpen={!!amsHistoryModal}
+          onClose={() => setAmsHistoryModal(null)}
+          printerId={printer.id}
+          printerName={printer.name}
+          amsId={amsHistoryModal.amsId}
+          amsLabel={amsHistoryModal.amsLabel}
+          initialMode={amsHistoryModal.mode}
+          thresholds={amsThresholds}
         />
       )}
 

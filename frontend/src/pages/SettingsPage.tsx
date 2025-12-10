@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Plus, Plug, AlertTriangle, RotateCcw, Bell, Download, RefreshCw, ExternalLink, Globe, Droplets, Thermometer, FileText, Edit2, Send, CheckCircle, XCircle, History, Trash2, Upload, Zap, TrendingUp, Calendar, DollarSign, Power, PowerOff, Key, Copy } from 'lucide-react';
+import { Loader2, Plus, Plug, AlertTriangle, RotateCcw, Bell, Download, RefreshCw, ExternalLink, Globe, Droplets, Thermometer, FileText, Edit2, Send, CheckCircle, XCircle, History, Trash2, Upload, Zap, TrendingUp, Calendar, DollarSign, Power, PowerOff, Key, Copy, Database } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
 import type { AppSettings, SmartPlug, SmartPlugStatus, NotificationProvider, NotificationTemplate, UpdateStatus } from '../api/client';
@@ -314,6 +314,7 @@ export function SettingsPage() {
       settings.ams_humidity_fair !== localSettings.ams_humidity_fair ||
       settings.ams_temp_good !== localSettings.ams_temp_good ||
       settings.ams_temp_fair !== localSettings.ams_temp_fair ||
+      settings.ams_history_retention_days !== localSettings.ams_history_retention_days ||
       settings.date_format !== localSettings.date_format ||
       settings.time_format !== localSettings.time_format ||
       settings.default_printer_id !== localSettings.default_printer_id;
@@ -786,6 +787,33 @@ export function SettingsPage() {
                 </div>
                 <p className="text-xs text-bambu-gray">
                   Above fair threshold shows as red (hot)
+                </p>
+              </div>
+
+              {/* History Retention */}
+              <div className="space-y-3 pt-4 border-t border-bambu-dark-tertiary">
+                <div className="flex items-center gap-2 text-white">
+                  <Database className="w-4 h-4 text-purple-400" />
+                  <span className="font-medium">History Retention</span>
+                </div>
+                <div>
+                  <label className="block text-sm text-bambu-gray mb-1">
+                    Keep sensor history for
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      max="365"
+                      value={localSettings.ams_history_retention_days ?? 30}
+                      onChange={(e) => updateSetting('ams_history_retention_days', parseInt(e.target.value) || 30)}
+                      className="w-24 px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
+                    />
+                    <span className="text-bambu-gray">days</span>
+                  </div>
+                </div>
+                <p className="text-xs text-bambu-gray">
+                  Older humidity and temperature data will be automatically deleted
                 </p>
               </div>
             </CardContent>
