@@ -54,6 +54,8 @@ def archive_to_response(
     data = {
         "id": archive.id,
         "printer_id": archive.printer_id,
+        "project_id": archive.project_id,
+        "project_name": archive.project.name if archive.project else None,
         "filename": archive.filename,
         "file_path": archive.file_path,
         "file_size": archive.file_size,
@@ -98,6 +100,7 @@ def archive_to_response(
 @router.get("/", response_model=list[ArchiveResponse])
 async def list_archives(
     printer_id: int | None = None,
+    project_id: int | None = None,
     limit: int = 50,
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
@@ -106,6 +109,7 @@ async def list_archives(
     service = ArchiveService(db)
     archives = await service.list_archives(
         printer_id=printer_id,
+        project_id=project_id,
         limit=limit,
         offset=offset,
     )
@@ -119,6 +123,286 @@ async def list_archives(
         has_duplicate = a.content_hash in duplicate_hashes if a.content_hash else False
         result.append(archive_to_response(a, duplicate_count=1 if has_duplicate else 0))
     return result
+
+
+@router.get("/search", response_model=list[ArchiveResponse])
+async def search_archives(
+    q: str = Query(..., min_length=2, description="Search query"),
+    printer_id: int | None = None,
+    project_id: int | None = None,
+    status: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db),
+):
+    """Full-text search across archives.
+
+    Searches print_name, filename, tags, notes, designer, and filament_type fields.
+    Supports partial matches with wildcards (e.g., 'vor*' matches 'voron').
+    """
+    from sqlalchemy import text
+    from sqlalchemy.orm import selectinload
+
+    # Prepare search query - add wildcard for partial matches
+    search_term = q.strip()
+    if not search_term.endswith('*'):
+        search_term = f"{search_term}*"
+
+    # Build the FTS query
+    # Using MATCH for FTS5 full-text search
+    fts_query = text("""
+        SELECT rowid FROM archive_fts
+        WHERE archive_fts MATCH :search_term
+        ORDER BY rank
+        LIMIT :limit OFFSET :offset
+    """)
+
+    try:
+        result = await db.execute(fts_query, {"search_term": search_term, "limit": limit + 100, "offset": 0})
+        matched_ids = [row[0] for row in result.fetchall()]
+    except Exception as e:
+        logger.warning(f"FTS search failed, falling back to LIKE search: {e}")
+        # Fallback to LIKE search if FTS fails
+        like_pattern = f"%{q}%"
+        query = (
+            select(PrintArchive)
+            .options(selectinload(PrintArchive.project))
+            .where(
+                (PrintArchive.print_name.ilike(like_pattern)) |
+                (PrintArchive.filename.ilike(like_pattern)) |
+                (PrintArchive.tags.ilike(like_pattern)) |
+                (PrintArchive.notes.ilike(like_pattern)) |
+                (PrintArchive.designer.ilike(like_pattern)) |
+                (PrintArchive.filament_type.ilike(like_pattern))
+            )
+            .order_by(PrintArchive.created_at.desc())
+        )
+
+        if printer_id:
+            query = query.where(PrintArchive.printer_id == printer_id)
+        if project_id:
+            query = query.where(PrintArchive.project_id == project_id)
+        if status:
+            query = query.where(PrintArchive.status == status)
+
+        query = query.limit(limit).offset(offset)
+        result = await db.execute(query)
+        archives = result.scalars().all()
+        return [archive_to_response(a) for a in archives]
+
+    if not matched_ids:
+        return []
+
+    # Fetch full archive records for matched IDs
+    query = (
+        select(PrintArchive)
+        .options(selectinload(PrintArchive.project))
+        .where(PrintArchive.id.in_(matched_ids))
+    )
+
+    # Apply additional filters
+    if printer_id:
+        query = query.where(PrintArchive.printer_id == printer_id)
+    if project_id:
+        query = query.where(PrintArchive.project_id == project_id)
+    if status:
+        query = query.where(PrintArchive.status == status)
+
+    result = await db.execute(query)
+    archives_dict = {a.id: a for a in result.scalars().all()}
+
+    # Preserve FTS ranking order and apply pagination
+    ordered_archives = [archives_dict[id] for id in matched_ids if id in archives_dict]
+    paginated = ordered_archives[offset:offset + limit]
+
+    return [archive_to_response(a) for a in paginated]
+
+
+@router.post("/search/rebuild-index")
+async def rebuild_search_index(db: AsyncSession = Depends(get_db)):
+    """Rebuild the full-text search index from existing archives.
+
+    Use this if search results seem incomplete or incorrect.
+    """
+    from sqlalchemy import text
+
+    try:
+        # Clear and rebuild the FTS index
+        await db.execute(text("DELETE FROM archive_fts"))
+
+        # Repopulate from print_archives
+        await db.execute(text("""
+            INSERT INTO archive_fts(rowid, print_name, filename, tags, notes, designer, filament_type)
+            SELECT id, print_name, filename, tags, notes, designer, filament_type
+            FROM print_archives
+        """))
+
+        await db.commit()
+
+        # Count entries
+        result = await db.execute(text("SELECT COUNT(*) FROM archive_fts"))
+        count = result.scalar() or 0
+
+        return {"message": f"Search index rebuilt with {count} entries"}
+    except Exception as e:
+        logger.error(f"Failed to rebuild search index: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to rebuild index: {str(e)}")
+
+
+@router.get("/analysis/failures")
+async def analyze_failures(
+    days: int = 30,
+    printer_id: int | None = None,
+    project_id: int | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Analyze failure patterns across prints.
+
+    Returns failure statistics including:
+    - Overall failure rate
+    - Failures by reason, filament type, printer
+    - Time of day distribution
+    - Recent failures
+    - Weekly trend
+    """
+    from backend.app.services.failure_analysis import FailureAnalysisService
+
+    service = FailureAnalysisService(db)
+    return await service.analyze_failures(
+        days=days,
+        printer_id=printer_id,
+        project_id=project_id,
+    )
+
+
+@router.get("/compare")
+async def compare_archives(
+    archive_ids: str = Query(..., description="Comma-separated archive IDs (2-5)"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Compare multiple archives side by side.
+
+    Compares print settings, filament usage, and print times.
+    Also analyzes correlation between settings and success/failure.
+
+    Args:
+        archive_ids: Comma-separated list of 2-5 archive IDs to compare
+    """
+    from backend.app.services.archive_comparison import ArchiveComparisonService
+
+    # Parse and validate archive IDs
+    try:
+        ids = [int(id.strip()) for id in archive_ids.split(",")]
+    except ValueError:
+        raise HTTPException(400, "Invalid archive IDs format")
+
+    if len(ids) < 2:
+        raise HTTPException(400, "At least 2 archives required for comparison")
+    if len(ids) > 5:
+        raise HTTPException(400, "Maximum 5 archives can be compared at once")
+
+    service = ArchiveComparisonService(db)
+    try:
+        return await service.compare_archives(ids)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.get("/export")
+async def export_archives(
+    format: str = Query("csv", description="Export format: csv or xlsx"),
+    fields: str | None = Query(None, description="Comma-separated field names"),
+    printer_id: int | None = None,
+    project_id: int | None = None,
+    status: str | None = None,
+    date_from: str | None = Query(None, description="Start date (ISO format)"),
+    date_to: str | None = Query(None, description="End date (ISO format)"),
+    search: str | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Export archives to CSV or Excel format.
+
+    Returns a downloadable file with archive data.
+    """
+    from datetime import datetime
+    from fastapi.responses import StreamingResponse
+    from backend.app.services.export import ExportService
+
+    if format not in ("csv", "xlsx"):
+        raise HTTPException(400, "Format must be 'csv' or 'xlsx'")
+
+    # Parse fields
+    field_list = None
+    if fields:
+        field_list = [f.strip() for f in fields.split(",")]
+
+    # Parse dates
+    date_from_dt = None
+    date_to_dt = None
+    if date_from:
+        try:
+            date_from_dt = datetime.fromisoformat(date_from)
+        except ValueError:
+            raise HTTPException(400, "Invalid date_from format")
+    if date_to:
+        try:
+            date_to_dt = datetime.fromisoformat(date_to)
+        except ValueError:
+            raise HTTPException(400, "Invalid date_to format")
+
+    service = ExportService(db)
+    try:
+        file_bytes, filename, content_type = await service.export_archives(
+            format=format,
+            fields=field_list,
+            printer_id=printer_id,
+            project_id=project_id,
+            status=status,
+            date_from=date_from_dt,
+            date_to=date_to_dt,
+            search=search,
+        )
+    except ImportError as e:
+        raise HTTPException(500, str(e))
+
+    return StreamingResponse(
+        io.BytesIO(file_bytes),
+        media_type=content_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/stats/export")
+async def export_stats(
+    format: str = Query("csv", description="Export format: csv or xlsx"),
+    days: int = 30,
+    printer_id: int | None = None,
+    project_id: int | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Export statistics summary to CSV or Excel format."""
+    from fastapi.responses import StreamingResponse
+    from backend.app.services.export import ExportService
+
+    if format not in ("csv", "xlsx"):
+        raise HTTPException(400, "Format must be 'csv' or 'xlsx'")
+
+    service = ExportService(db)
+    try:
+        file_bytes, filename, content_type = await service.export_stats(
+            format=format,
+            days=days,
+            printer_id=printer_id,
+            project_id=project_id,
+        )
+    except ImportError as e:
+        raise HTTPException(500, str(e))
+
+    return StreamingResponse(
+        io.BytesIO(file_bytes),
+        media_type=content_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/stats", response_model=ArchiveStats)
@@ -279,15 +563,41 @@ async def get_archive(archive_id: int, db: AsyncSession = Depends(get_db)):
     return archive_to_response(archive, duplicates)
 
 
+@router.get("/{archive_id}/similar")
+async def find_similar_archives(
+    archive_id: int,
+    limit: int = 10,
+    db: AsyncSession = Depends(get_db),
+):
+    """Find archives with similar settings for comparison.
+
+    Returns archives that match by:
+    - Same print name (highest priority)
+    - Same file content hash
+    - Same filament type
+    """
+    from backend.app.services.archive_comparison import ArchiveComparisonService
+
+    service = ArchiveComparisonService(db)
+    try:
+        return await service.find_similar_archives(archive_id, limit=limit)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+
+
 @router.patch("/{archive_id}", response_model=ArchiveResponse)
 async def update_archive(
     archive_id: int,
     update_data: ArchiveUpdate,
     db: AsyncSession = Depends(get_db),
 ):
-    """Update archive metadata (tags, notes, cost, is_favorite)."""
+    """Update archive metadata (tags, notes, cost, is_favorite, project_id)."""
+    from sqlalchemy.orm import selectinload
+
     result = await db.execute(
-        select(PrintArchive).where(PrintArchive.id == archive_id)
+        select(PrintArchive)
+        .options(selectinload(PrintArchive.project))
+        .where(PrintArchive.id == archive_id)
     )
     archive = result.scalar_one_or_none()
     if not archive:
@@ -297,8 +607,16 @@ async def update_archive(
         setattr(archive, field, value)
 
     await db.commit()
-    await db.refresh(archive)
-    return archive
+
+    # Re-fetch with project relationship loaded after commit
+    result = await db.execute(
+        select(PrintArchive)
+        .options(selectinload(PrintArchive.project))
+        .where(PrintArchive.id == archive_id)
+    )
+    archive = result.scalar_one_or_none()
+
+    return archive_to_response(archive)
 
 
 @router.post("/{archive_id}/favorite", response_model=ArchiveResponse)

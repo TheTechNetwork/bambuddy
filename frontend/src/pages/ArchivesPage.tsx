@@ -36,10 +36,14 @@ import {
   FileText,
   FileCode,
   MoreVertical,
+  FileSpreadsheet,
+  GitCompare,
+  Loader2,
+  FolderKanban,
 } from 'lucide-react';
 import { api } from '../api/client';
 import { useIsMobile } from '../hooks/useIsMobile';
-import type { Archive } from '../api/client';
+import type { Archive, ProjectListItem } from '../api/client';
 import { Card, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
 import { ModelViewerModal } from '../components/ModelViewerModal';
@@ -55,6 +59,7 @@ import { PhotoGalleryModal } from '../components/PhotoGalleryModal';
 import { ProjectPageModal } from '../components/ProjectPageModal';
 import { TimelapseViewer } from '../components/TimelapseViewer';
 import { AddToQueueModal } from '../components/AddToQueueModal';
+import { CompareArchivesModal } from '../components/CompareArchivesModal';
 import { useToast } from '../contexts/ToastContext';
 
 function formatFileSize(bytes: number): string {
@@ -86,12 +91,14 @@ function ArchiveCard({
   isSelected,
   onSelect,
   selectionMode,
+  projects,
 }: {
   archive: Archive;
   printerName: string;
   isSelected: boolean;
   onSelect: (id: number) => void;
   selectionMode: boolean;
+  projects: ProjectListItem[] | undefined;
 }) {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
@@ -183,6 +190,18 @@ function ArchiveCard({
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['archives'] });
       showToast(data.is_favorite ? 'Added to favorites' : 'Removed from favorites');
+    },
+  });
+
+  const assignProjectMutation = useMutation({
+    mutationFn: (projectId: number | null) => api.updateArchive(archive.id, { project_id: projectId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['archives'] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      showToast('Project updated');
+    },
+    onError: () => {
+      showToast('Failed to update project', 'error');
     },
   });
 
@@ -310,6 +329,59 @@ function ArchiveCard({
       label: 'Edit',
       icon: <Pencil className="w-4 h-4" />,
       onClick: () => setShowEdit(true),
+    },
+    ...(archive.project_id && archive.project_name ? [{
+      label: `Go to Project: ${archive.project_name}`,
+      icon: <FolderKanban className="w-4 h-4 text-bambu-green" />,
+      onClick: () => window.location.href = '/projects',
+    }] : []),
+    {
+      label: 'Add to Project',
+      icon: <FolderKanban className="w-4 h-4" />,
+      onClick: () => {},
+      submenu: (() => {
+        const items: ContextMenuItem[] = [];
+
+        // Add "Remove from Project" if archive is in a project
+        if (archive.project_id) {
+          items.push({
+            label: 'Remove from Project',
+            icon: <X className="w-4 h-4" />,
+            onClick: () => assignProjectMutation.mutate(null),
+          });
+        }
+
+        // Add project options
+        if (!projects) {
+          items.push({
+            label: 'Loading...',
+            icon: <Loader2 className="w-4 h-4 animate-spin" />,
+            onClick: () => {},
+            disabled: true,
+          });
+        } else {
+          const activeProjects = projects.filter(p => p.status === 'active');
+          if (activeProjects.length === 0) {
+            items.push({
+              label: 'No projects available',
+              icon: <FolderKanban className="w-4 h-4 opacity-50" />,
+              onClick: () => {},
+              disabled: true,
+            });
+          } else {
+            activeProjects.forEach(p => {
+              items.push({
+                label: p.name,
+                icon: <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: p.color || '#888' }} />,
+                onClick: () => assignProjectMutation.mutate(p.id),
+                disabled: archive.project_id === p.id,
+              });
+            });
+          }
+        }
+
+        return items;
+      })(),
     },
     {
       label: isSelected ? 'Deselect' : 'Select',
@@ -454,7 +526,21 @@ function ArchiveCard({
         <h3 className="font-medium text-white mb-1 truncate">
           {archive.print_name || archive.filename}
         </h3>
-        <p className="text-xs text-bambu-gray mb-3">{printerName}</p>
+        <div className="flex items-center gap-2 mb-3">
+          <p className="text-xs text-bambu-gray">{printerName}</p>
+          {archive.project_name && (
+            <span
+              className="text-xs px-1.5 py-0.5 rounded-full truncate max-w-[120px]"
+              style={{
+                backgroundColor: `${projects?.find(p => p.id === archive.project_id)?.color || '#6b7280'}20`,
+                color: projects?.find(p => p.id === archive.project_id)?.color || '#6b7280'
+              }}
+              title={`Project: ${archive.project_name}`}
+            >
+              {archive.project_name}
+            </span>
+          )}
+        </div>
 
         {/* Stats */}
         <div className="grid grid-cols-2 gap-2 text-xs mb-4 min-h-[48px]">
@@ -857,6 +943,9 @@ export function ArchivesPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [sortBy, setSortBy] = useState<SortOption>('date-desc');
   const [collection, setCollection] = useState<Collection>('all');
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [showCompareModal, setShowCompareModal] = useState(false);
 
   const { data: archives, isLoading } = useQuery({
     queryKey: ['archives', filterPrinter],
@@ -866,6 +955,11 @@ export function ArchivesPage() {
   const { data: printers } = useQuery({
     queryKey: ['printers'],
     queryFn: api.getPrinters,
+  });
+
+  const { data: projects } = useQuery({
+    queryKey: ['projects'],
+    queryFn: () => api.getProjects(),
   });
 
   const bulkDeleteMutation = useMutation({
@@ -1176,6 +1270,93 @@ export function ArchivesPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {/* Export dropdown */}
+          <div className="relative">
+            <Button
+              variant="secondary"
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              disabled={isExporting}
+            >
+              {isExporting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <FileSpreadsheet className="w-4 h-4" />
+              )}
+              Export
+            </Button>
+            {showExportMenu && (
+              <div className="absolute right-0 top-full mt-1 w-48 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-xl z-20">
+                <button
+                  className="w-full px-4 py-2 text-left text-white hover:bg-bambu-dark-tertiary transition-colors flex items-center gap-2 rounded-t-lg"
+                  onClick={async () => {
+                    setShowExportMenu(false);
+                    setIsExporting(true);
+                    try {
+                      const { blob, filename } = await api.exportArchives({
+                        format: 'csv',
+                        printerId: filterPrinter || undefined,
+                        status: collection === 'failed' ? 'failed' : undefined,
+                        search: search || undefined,
+                      });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = filename;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                      showToast('Export downloaded');
+                    } catch (err) {
+                      showToast('Export failed', 'error');
+                    } finally {
+                      setIsExporting(false);
+                    }
+                  }}
+                >
+                  <FileText className="w-4 h-4" />
+                  Export as CSV
+                </button>
+                <button
+                  className="w-full px-4 py-2 text-left text-white hover:bg-bambu-dark-tertiary transition-colors flex items-center gap-2 rounded-b-lg"
+                  onClick={async () => {
+                    setShowExportMenu(false);
+                    setIsExporting(true);
+                    try {
+                      const { blob, filename } = await api.exportArchives({
+                        format: 'xlsx',
+                        printerId: filterPrinter || undefined,
+                        status: collection === 'failed' ? 'failed' : undefined,
+                        search: search || undefined,
+                      });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = filename;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                      showToast('Export downloaded');
+                    } catch (err) {
+                      showToast('Export failed', 'error');
+                    } finally {
+                      setIsExporting(false);
+                    }
+                  }}
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  Export as Excel
+                </button>
+              </div>
+            )}
+          </div>
+          {/* Compare button (only when 2-5 items selected) */}
+          {selectedIds.size >= 2 && selectedIds.size <= 5 && (
+            <Button
+              variant="secondary"
+              onClick={() => setShowCompareModal(true)}
+            >
+              <GitCompare className="w-4 h-4" />
+              Compare ({selectedIds.size})
+            </Button>
+          )}
           {!selectionMode && (
             <Button variant="secondary" onClick={() => setIsSelectionMode(true)}>
               <CheckSquare className="w-4 h-4" />
@@ -1402,6 +1583,7 @@ export function ArchivesPage() {
               isSelected={selectedIds.has(archive.id)}
               onSelect={toggleSelect}
               selectionMode={selectionMode}
+              projects={projects}
             />
           ))}
         </div>
@@ -1558,6 +1740,18 @@ export function ArchivesPage() {
           selectedIds={Array.from(selectedIds)}
           existingTags={uniqueTags}
           onClose={() => setShowBatchTag(false)}
+        />
+      )}
+
+      {/* Compare Archives Modal */}
+      {showCompareModal && selectedIds.size >= 2 && selectedIds.size <= 5 && (
+        <CompareArchivesModal
+          archiveIds={Array.from(selectedIds)}
+          onClose={() => {
+            setShowCompareModal(false);
+            setSelectedIds(new Set());
+            setIsSelectionMode(false);
+          }}
         />
       )}
     </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { X, Save, Tag, Camera, Trash2, Loader2, Plus } from 'lucide-react';
+import { X, Save, Tag, Camera, Trash2, Loader2, Plus, FolderKanban } from 'lucide-react';
 import { api } from '../api/client';
 import type { Archive } from '../api/client';
 import { Button } from './Button';
@@ -37,6 +37,7 @@ export function EditArchiveModal({ archive, onClose, existingTags = [] }: EditAr
   const queryClient = useQueryClient();
   const [printName, setPrintName] = useState(archive.print_name || '');
   const [printerId, setPrinterId] = useState<number | null>(archive.printer_id);
+  const [projectId, setProjectId] = useState<number | null>(archive.project_id ?? null);
   const [notes, setNotes] = useState(archive.notes || '');
   const [tags, setTags] = useState(archive.tags || '');
   const [failureReason, setFailureReason] = useState(archive.failure_reason || '');
@@ -50,6 +51,11 @@ export function EditArchiveModal({ archive, onClose, existingTags = [] }: EditAr
   const { data: printers } = useQuery({
     queryKey: ['printers'],
     queryFn: api.getPrinters,
+  });
+
+  const { data: projects } = useQuery({
+    queryKey: ['projects'],
+    queryFn: () => api.getProjects(),
   });
 
   // Get all archives to extract existing tags if not provided
@@ -96,6 +102,7 @@ export function EditArchiveModal({ archive, onClose, existingTags = [] }: EditAr
       api.updateArchive(archive.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['archives'] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
       onClose();
     },
   });
@@ -134,6 +141,7 @@ export function EditArchiveModal({ archive, onClose, existingTags = [] }: EditAr
     updateMutation.mutate({
       print_name: printName || undefined,
       printer_id: printerId,
+      project_id: projectId,
       notes: notes || undefined,
       tags: tags || undefined,
       failure_reason: archive.status === 'failed' ? (failureReason || undefined) : undefined,
@@ -184,6 +192,26 @@ export function EditArchiveModal({ archive, onClose, existingTags = [] }: EditAr
             >
               <option value="">No printer</option>
               {printers?.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Project */}
+          <div>
+            <label className="block text-sm text-bambu-gray mb-1">
+              <FolderKanban className="w-4 h-4 inline mr-1" />
+              Project
+            </label>
+            <select
+              value={projectId ?? ''}
+              onChange={(e) => setProjectId(e.target.value ? Number(e.target.value) : null)}
+              className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
+            >
+              <option value="">No project</option>
+              {projects?.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
                 </option>

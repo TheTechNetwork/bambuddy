@@ -60,6 +60,13 @@
       "description": "View print queue",
       "url": "/queue",
       "icons": [{ "src": "/img/android-chrome-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Projects",
+      "short_name": "Projects",
+      "description": "View print projects",
+      "url": "/projects",
+      "icons": [{ "src": "/img/android-chrome-192x192.png", "sizes": "192x192" }]
     }
   ]
 }

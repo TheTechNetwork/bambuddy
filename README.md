@@ -45,16 +45,18 @@
 ### 📦 Print Archive
 - Automatic 3MF archiving with metadata
 - 3D model preview (Three.js)
-- Duplicate detection
+- Duplicate detection & full-text search
 - Photo attachments & failure analysis
 - Re-print to any connected printer
+- Archive comparison (side-by-side diff)
 
 ### 📊 Monitoring & Stats
 - Real-time printer status via WebSocket
 - HMS error monitoring
 - Print success rates & trends
 - Filament usage tracking
-- Cost analytics
+- Cost analytics & failure analysis
+- CSV/Excel export
 
 ### ⏰ Scheduling & Automation
 - Print queue with drag-and-drop
@@ -62,6 +64,12 @@
 - Smart plug integration (Tasmota)
 - Auto power-on before print
 - Auto power-off after cooldown
+
+### 📁 Projects
+- Group related prints (e.g., "Voron Build")
+- Track progress with target counts
+- Color-coded project badges
+- Assign archives via context menu
 
 </td>
 <td width="50%" valign="top">
@@ -78,6 +86,7 @@
 - Bambu Cloud profile management
 - K-profiles (pressure advance)
 - External sidebar links
+- Webhooks & API keys
 
 ### 🛠️ Maintenance
 - Maintenance scheduling & tracking

@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import {
   Package,
   Clock,
@@ -8,7 +9,15 @@ import {
   Printer,
   Target,
   Zap,
+  AlertTriangle,
+  TrendingDown,
+  FileSpreadsheet,
+  FileText,
+  Loader2,
+  RotateCcw,
 } from 'lucide-react';
+import { Button } from '../components/Button';
+import { useToast } from '../contexts/ToastContext';
 import { api } from '../api/client';
 import { PrintCalendar } from '../components/PrintCalendar';
 import { FilamentTrends } from '../components/FilamentTrends';
@@ -311,7 +320,80 @@ function FilamentTrendsWidget({
   return <FilamentTrends archives={archives} currency={currency} />;
 }
 
+function FailureAnalysisWidget() {
+  const { data: analysis, isLoading } = useQuery({
+    queryKey: ['failureAnalysis'],
+    queryFn: () => api.getFailureAnalysis({ days: 30 }),
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-4">
+        <Loader2 className="w-6 h-6 text-bambu-green animate-spin" />
+      </div>
+    );
+  }
+
+  if (!analysis || analysis.total_prints === 0) {
+    return <p className="text-bambu-gray text-center py-4">No print data in the last 30 days</p>;
+  }
+
+  const topReasons = Object.entries(analysis.failures_by_reason)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 5);
+
+  return (
+    <div className="space-y-4">
+      {/* Summary */}
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          <AlertTriangle className={`w-5 h-5 ${analysis.failure_rate > 20 ? 'text-red-400' : analysis.failure_rate > 10 ? 'text-yellow-400' : 'text-bambu-green'}`} />
+          <span className="text-2xl font-bold text-white">{analysis.failure_rate.toFixed(1)}%</span>
+          <span className="text-sm text-bambu-gray">failure rate</span>
+        </div>
+        <div className="text-sm text-bambu-gray">
+          {analysis.failed_prints} / {analysis.total_prints} prints failed
+        </div>
+      </div>
+
+      {/* Top Failure Reasons */}
+      {topReasons.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs text-bambu-gray font-medium">Top Failure Reasons</p>
+          {topReasons.map(([reason, count]) => (
+            <div key={reason} className="flex items-center justify-between text-sm">
+              <span className="text-white truncate max-w-[200px]">{reason || 'Unknown'}</span>
+              <span className="text-bambu-gray">{count}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Trend indicator */}
+      {analysis.trend && analysis.trend.length >= 2 && (
+        <div className="pt-2 border-t border-bambu-dark-tertiary">
+          <div className="flex items-center gap-2 text-sm">
+            <TrendingDown className={`w-4 h-4 ${
+              analysis.trend[analysis.trend.length - 1].failure_rate < analysis.trend[analysis.trend.length - 2].failure_rate
+                ? 'text-bambu-green'
+                : 'text-red-400'
+            }`} />
+            <span className="text-bambu-gray">
+              Last week: {analysis.trend[analysis.trend.length - 1].failure_rate.toFixed(1)}%
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function StatsPage() {
+  const { showToast } = useToast();
+  const [isExporting, setIsExporting] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [dashboardKey, setDashboardKey] = useState(0);
+
   const { data: stats, isLoading } = useQuery({
     queryKey: ['archiveStats'],
     queryFn: api.getArchiveStats,
@@ -331,6 +413,25 @@ export function StatsPage() {
     queryKey: ['settings'],
     queryFn: api.getSettings,
   });
+
+  const handleExport = async (format: 'csv' | 'xlsx') => {
+    setShowExportMenu(false);
+    setIsExporting(true);
+    try {
+      const { blob, filename } = await api.exportStats({ format, days: 90 });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Export downloaded');
+    } catch (err) {
+      showToast('Export failed', 'error');
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const currency = settings?.currency || '$';
   const printerMap = new Map(printers?.map((p) => [String(p.id), p.name]) || []);
@@ -372,6 +473,12 @@ export function StatsPage() {
       defaultSize: 1,
     },
     {
+      id: 'failure-analysis',
+      title: 'Failure Analysis (30 days)',
+      component: <FailureAnalysisWidget />,
+      defaultSize: 1,
+    },
+    {
       id: 'print-activity',
       title: 'Print Activity',
       component: <PrintActivityWidget printDates={printDates} />,
@@ -391,14 +498,64 @@ export function StatsPage() {
     },
   ];
 
+  const handleResetLayout = () => {
+    localStorage.removeItem('bambusy-dashboard-layout');
+    setDashboardKey(prev => prev + 1);
+    showToast('Layout reset');
+  };
+
   return (
     <div className="p-4 md:p-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-        <p className="text-bambu-gray">Drag widgets to rearrange. Click the eye icon to hide.</p>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+          <p className="text-bambu-gray">Drag widgets to rearrange. Click the eye icon to hide.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            onClick={handleResetLayout}
+          >
+            <RotateCcw className="w-4 h-4" />
+            Reset Layout
+          </Button>
+          {/* Export dropdown */}
+          <div className="relative">
+            <Button
+              variant="secondary"
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              disabled={isExporting}
+            >
+              {isExporting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <FileSpreadsheet className="w-4 h-4" />
+              )}
+              Export Stats
+            </Button>
+            {showExportMenu && (
+              <div className="absolute right-0 top-full mt-1 w-48 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-xl z-20">
+                <button
+                  className="w-full px-4 py-2 text-left text-white hover:bg-bambu-dark-tertiary transition-colors flex items-center gap-2 rounded-t-lg"
+                  onClick={() => handleExport('csv')}
+                >
+                  <FileText className="w-4 h-4" />
+                  Export as CSV
+                </button>
+                <button
+                  className="w-full px-4 py-2 text-left text-white hover:bg-bambu-dark-tertiary transition-colors flex items-center gap-2 rounded-b-lg"
+                  onClick={() => handleExport('xlsx')}
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  Export as Excel
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
-      <Dashboard widgets={widgets} storageKey="bambusy-dashboard-layout" />
+      <Dashboard key={dashboardKey} widgets={widgets} storageKey="bambusy-dashboard-layout" hideControls />
     </div>
   );
 }

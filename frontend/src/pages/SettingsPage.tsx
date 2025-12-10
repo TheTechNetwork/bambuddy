@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Plus, Plug, AlertTriangle, RotateCcw, Bell, Download, RefreshCw, ExternalLink, Globe, Droplets, Thermometer, FileText, Edit2, Send, CheckCircle, XCircle, History, Trash2, Upload, Zap, TrendingUp, Calendar, DollarSign, Power, PowerOff } from 'lucide-react';
+import { Loader2, Plus, Plug, AlertTriangle, RotateCcw, Bell, Download, RefreshCw, ExternalLink, Globe, Droplets, Thermometer, FileText, Edit2, Send, CheckCircle, XCircle, History, Trash2, Upload, Zap, TrendingUp, Calendar, DollarSign, Power, PowerOff, Key, Copy } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
 import type { AppSettings, SmartPlug, SmartPlugStatus, NotificationProvider, NotificationTemplate, UpdateStatus } from '../api/client';
@@ -33,7 +33,16 @@ export function SettingsPage() {
   const [editingTemplate, setEditingTemplate] = useState<NotificationTemplate | null>(null);
   const [showLogViewer, setShowLogViewer] = useState(false);
   const [defaultView, setDefaultViewState] = useState<string>(getDefaultView());
-  const [activeTab, setActiveTab] = useState<'general' | 'plugs' | 'notifications'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'plugs' | 'notifications' | 'apikeys'>('general');
+  const [showCreateAPIKey, setShowCreateAPIKey] = useState(false);
+  const [newAPIKeyName, setNewAPIKeyName] = useState('');
+  const [newAPIKeyPermissions, setNewAPIKeyPermissions] = useState({
+    can_queue: true,
+    can_control_printer: false,
+    can_read_status: true,
+  });
+  const [createdAPIKey, setCreatedAPIKey] = useState<string | null>(null);
+  const [showDeleteAPIKeyConfirm, setShowDeleteAPIKeyConfirm] = useState<number | null>(null);
 
   // Confirm modal states
   const [showClearLogsConfirm, setShowClearLogsConfirm] = useState(false);
@@ -111,6 +120,38 @@ export function SettingsPage() {
   const { data: notificationProviders, isLoading: providersLoading } = useQuery({
     queryKey: ['notification-providers'],
     queryFn: api.getNotificationProviders,
+  });
+
+  const { data: apiKeys, isLoading: apiKeysLoading } = useQuery({
+    queryKey: ['api-keys'],
+    queryFn: api.getAPIKeys,
+    enabled: activeTab === 'apikeys',
+  });
+
+  const createAPIKeyMutation = useMutation({
+    mutationFn: (data: { name: string; can_queue: boolean; can_control_printer: boolean; can_read_status: boolean }) =>
+      api.createAPIKey(data),
+    onSuccess: (data) => {
+      setCreatedAPIKey(data.key || null);
+      setShowCreateAPIKey(false);
+      setNewAPIKeyName('');
+      queryClient.invalidateQueries({ queryKey: ['api-keys'] });
+      showToast('API key created');
+    },
+    onError: (error: Error) => {
+      showToast(`Failed to create API key: ${error.message}`, 'error');
+    },
+  });
+
+  const deleteAPIKeyMutation = useMutation({
+    mutationFn: (id: number) => api.deleteAPIKey(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['api-keys'] });
+      showToast('API key deleted');
+    },
+    onError: (error: Error) => {
+      showToast(`Failed to delete API key: ${error.message}`, 'error');
+    },
   });
 
   const { data: printers } = useQuery({
@@ -359,6 +400,22 @@ export function SettingsPage() {
           {notificationProviders && notificationProviders.length > 0 && (
             <span className="text-xs bg-bambu-dark-tertiary px-1.5 py-0.5 rounded-full">
               {notificationProviders.length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab('apikeys')}
+          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px flex items-center gap-2 ${
+            activeTab === 'apikeys'
+              ? 'text-bambu-green border-bambu-green'
+              : 'text-bambu-gray hover:text-white border-transparent'
+          }`}
+        >
+          <Key className="w-4 h-4" />
+          API Keys
+          {apiKeys && apiKeys.length > 0 && (
+            <span className="text-xs bg-bambu-dark-tertiary px-1.5 py-0.5 rounded-full">
+              {apiKeys.length}
             </span>
           )}
         </button>
@@ -1341,6 +1398,285 @@ export function SettingsPage() {
             )}
           </div>
         </div>
+      )}
+
+      {/* API Keys Tab */}
+      {activeTab === 'apikeys' && (
+        <div className="max-w-3xl">
+          <div className="flex items-start justify-between gap-4 mb-6">
+            <div className="flex-1">
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                <Key className="w-5 h-5 text-bambu-green" />
+                API Keys
+              </h2>
+              <p className="text-sm text-bambu-gray mt-1">
+                Create API keys for external integrations and webhooks. Use these keys to control your printers from automation tools like Home Assistant.
+              </p>
+            </div>
+            <Button size="sm" onClick={() => setShowCreateAPIKey(true)} className="flex-shrink-0">
+              <Plus className="w-4 h-4" />
+              Create Key
+            </Button>
+          </div>
+
+          {/* Created Key Display */}
+          {createdAPIKey && (
+            <Card className="mb-6 border-bambu-green">
+              <CardContent className="py-4">
+                <div className="flex items-start gap-3">
+                  <CheckCircle className="w-5 h-5 text-bambu-green flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-white font-medium mb-1">API Key Created Successfully</p>
+                    <p className="text-sm text-bambu-gray mb-2">
+                      Copy this key now - it won't be shown again!
+                    </p>
+                    <div className="flex items-center gap-2 bg-bambu-dark rounded-lg p-2">
+                      <code className="flex-1 text-sm text-bambu-green font-mono break-all">
+                        {createdAPIKey}
+                      </code>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            if (navigator.clipboard && navigator.clipboard.writeText) {
+                              await navigator.clipboard.writeText(createdAPIKey);
+                            } else {
+                              // Fallback for non-HTTPS contexts
+                              const textArea = document.createElement('textarea');
+                              textArea.value = createdAPIKey;
+                              textArea.style.position = 'fixed';
+                              textArea.style.left = '-999999px';
+                              document.body.appendChild(textArea);
+                              textArea.select();
+                              document.execCommand('copy');
+                              document.body.removeChild(textArea);
+                            }
+                            showToast('Key copied to clipboard');
+                          } catch {
+                            showToast('Failed to copy key', 'error');
+                          }
+                        }}
+                      >
+                        <Copy className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="mt-3"
+                      onClick={() => setCreatedAPIKey(null)}
+                    >
+                      Dismiss
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Create Key Form */}
+          {showCreateAPIKey && (
+            <Card className="mb-6">
+              <CardHeader>
+                <h3 className="text-base font-semibold text-white">Create New API Key</h3>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <label className="block text-sm text-bambu-gray mb-1">Key Name</label>
+                  <input
+                    type="text"
+                    value={newAPIKeyName}
+                    onChange={(e) => setNewAPIKeyName(e.target.value)}
+                    placeholder="e.g., Home Assistant, OctoPrint"
+                    className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-bambu-gray mb-2">Permissions</label>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={newAPIKeyPermissions.can_read_status}
+                        onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_read_status: e.target.checked }))}
+                        className="w-4 h-4 text-bambu-green rounded border-bambu-dark-tertiary bg-bambu-dark focus:ring-bambu-green"
+                      />
+                      <div>
+                        <span className="text-white">Read Status</span>
+                        <p className="text-xs text-bambu-gray">View printer status and queue</p>
+                      </div>
+                    </label>
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={newAPIKeyPermissions.can_queue}
+                        onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_queue: e.target.checked }))}
+                        className="w-4 h-4 text-bambu-green rounded border-bambu-dark-tertiary bg-bambu-dark focus:ring-bambu-green"
+                      />
+                      <div>
+                        <span className="text-white">Manage Queue</span>
+                        <p className="text-xs text-bambu-gray">Add and remove items from print queue</p>
+                      </div>
+                    </label>
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={newAPIKeyPermissions.can_control_printer}
+                        onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_control_printer: e.target.checked }))}
+                        className="w-4 h-4 text-bambu-green rounded border-bambu-dark-tertiary bg-bambu-dark focus:ring-bambu-green"
+                      />
+                      <div>
+                        <span className="text-white">Control Printer</span>
+                        <p className="text-xs text-bambu-gray">Pause, resume, and stop prints</p>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 pt-2">
+                  <Button
+                    onClick={() => createAPIKeyMutation.mutate({
+                      name: newAPIKeyName || 'Unnamed Key',
+                      ...newAPIKeyPermissions,
+                    })}
+                    disabled={createAPIKeyMutation.isPending}
+                  >
+                    {createAPIKeyMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Plus className="w-4 h-4" />
+                    )}
+                    Create Key
+                  </Button>
+                  <Button variant="secondary" onClick={() => setShowCreateAPIKey(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Existing Keys List */}
+          {apiKeysLoading ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="w-8 h-8 text-bambu-green animate-spin" />
+            </div>
+          ) : apiKeys && apiKeys.length > 0 ? (
+            <div className="space-y-3">
+              {apiKeys.map((key) => (
+                <Card key={key.id}>
+                  <CardContent className="py-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Key className={`w-5 h-5 ${key.enabled ? 'text-bambu-green' : 'text-bambu-gray'}`} />
+                        <div>
+                          <p className="text-white font-medium">{key.name}</p>
+                          <p className="text-xs text-bambu-gray">
+                            {key.key_prefix}••••••••
+                            {key.last_used && ` · Last used: ${new Date(key.last_used).toLocaleDateString()}`}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-1 text-xs">
+                          {key.can_read_status && (
+                            <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">Read</span>
+                          )}
+                          {key.can_queue && (
+                            <span className="px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded">Queue</span>
+                          )}
+                          {key.can_control_printer && (
+                            <span className="px-1.5 py-0.5 bg-orange-500/20 text-orange-400 rounded">Control</span>
+                          )}
+                        </div>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setShowDeleteAPIKeyConfirm(key.id)}
+                        >
+                          <Trash2 className="w-4 h-4 text-red-400" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="py-12">
+                <div className="text-center text-bambu-gray">
+                  <Key className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                  <p className="text-lg font-medium text-white mb-2">No API keys</p>
+                  <p className="text-sm mb-4">Create an API key to integrate with external services.</p>
+                  <Button onClick={() => setShowCreateAPIKey(true)}>
+                    <Plus className="w-4 h-4" />
+                    Create Your First Key
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Webhook Documentation */}
+          <Card className="mt-6">
+            <CardHeader>
+              <h3 className="text-base font-semibold text-white">Webhook Endpoints</h3>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <p className="text-bambu-gray">
+                Use your API key in the <code className="text-bambu-green">X-API-Key</code> header.
+              </p>
+              <div className="space-y-2 font-mono text-xs">
+                <div className="p-2 bg-bambu-dark rounded">
+                  <span className="text-blue-400">GET</span>{' '}
+                  <span className="text-white">/api/v1/webhook/status</span>
+                  <span className="text-bambu-gray"> - Get all printer status</span>
+                </div>
+                <div className="p-2 bg-bambu-dark rounded">
+                  <span className="text-blue-400">GET</span>{' '}
+                  <span className="text-white">/api/v1/webhook/status/:id</span>
+                  <span className="text-bambu-gray"> - Get specific printer status</span>
+                </div>
+                <div className="p-2 bg-bambu-dark rounded">
+                  <span className="text-green-400">POST</span>{' '}
+                  <span className="text-white">/api/v1/webhook/queue</span>
+                  <span className="text-bambu-gray"> - Add to print queue</span>
+                </div>
+                <div className="p-2 bg-bambu-dark rounded">
+                  <span className="text-orange-400">POST</span>{' '}
+                  <span className="text-white">/api/v1/webhook/printer/:id/pause</span>
+                  <span className="text-bambu-gray"> - Pause print</span>
+                </div>
+                <div className="p-2 bg-bambu-dark rounded">
+                  <span className="text-orange-400">POST</span>{' '}
+                  <span className="text-white">/api/v1/webhook/printer/:id/resume</span>
+                  <span className="text-bambu-gray"> - Resume print</span>
+                </div>
+                <div className="p-2 bg-bambu-dark rounded">
+                  <span className="text-red-400">POST</span>{' '}
+                  <span className="text-white">/api/v1/webhook/printer/:id/stop</span>
+                  <span className="text-bambu-gray"> - Stop print</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Delete API Key Confirmation */}
+      {showDeleteAPIKeyConfirm !== null && (
+        <ConfirmModal
+          title="Delete API Key"
+          message="Are you sure you want to delete this API key? Any integrations using this key will stop working."
+          confirmText="Delete Key"
+          variant="danger"
+          onConfirm={() => {
+            deleteAPIKeyMutation.mutate(showDeleteAPIKeyConfirm);
+            setShowDeleteAPIKeyConfirm(null);
+          }}
+          onCancel={() => setShowDeleteAPIKeyConfirm(null)}
+        />
       )}
 
       {/* Smart Plug Modal */}

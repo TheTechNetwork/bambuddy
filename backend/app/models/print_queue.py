@@ -19,6 +19,9 @@ class PrintQueueItem(Base):
     archive_id: Mapped[int] = mapped_column(
         ForeignKey("print_archives.id", ondelete="CASCADE")
     )
+    project_id: Mapped[int | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
+    )
 
     # Scheduling
     position: Mapped[int] = mapped_column(Integer, default=0)  # Queue order
@@ -44,7 +47,9 @@ class PrintQueueItem(Base):
     # Relationships
     printer: Mapped["Printer"] = relationship()
     archive: Mapped["PrintArchive"] = relationship()
+    project: Mapped["Project | None"] = relationship(back_populates="queue_items")
 
 
 from backend.app.models.printer import Printer  # noqa: E402
 from backend.app.models.archive import PrintArchive  # noqa: E402
+from backend.app.models.project import Project  # noqa: E402

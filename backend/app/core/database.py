@@ -34,7 +34,7 @@ async def get_db() -> AsyncSession:
 
 async def init_db():
     # Import models to register them with SQLAlchemy
-    from backend.app.models import printer, archive, filament, settings, smart_plug, print_queue, notification, maintenance, kprofile_note, notification_template, external_link  # noqa: F401
+    from backend.app.models import printer, archive, filament, settings, smart_plug, print_queue, notification, maintenance, kprofile_note, notification_template, external_link, project, api_key  # noqa: F401
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -188,6 +188,72 @@ async def run_migrations(conn):
         await conn.execute(text(
             "ALTER TABLE notification_providers ADD COLUMN daily_digest_time VARCHAR(5)"
         ))
+    except Exception:
+        pass
+
+    # Migration: Add project_id column to print_archives
+    try:
+        await conn.execute(text(
+            "ALTER TABLE print_archives ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL"
+        ))
+    except Exception:
+        pass
+
+    # Migration: Add project_id column to print_queue
+    try:
+        await conn.execute(text(
+            "ALTER TABLE print_queue ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL"
+        ))
+    except Exception:
+        pass
+
+    # Migration: Create FTS5 virtual table for archive full-text search
+    try:
+        await conn.execute(text("""
+            CREATE VIRTUAL TABLE IF NOT EXISTS archive_fts USING fts5(
+                print_name,
+                filename,
+                tags,
+                notes,
+                designer,
+                filament_type,
+                content='print_archives',
+                content_rowid='id'
+            )
+        """))
+    except Exception:
+        pass
+
+    # Migration: Create triggers to keep FTS index in sync
+    try:
+        await conn.execute(text("""
+            CREATE TRIGGER IF NOT EXISTS archive_fts_insert AFTER INSERT ON print_archives BEGIN
+                INSERT INTO archive_fts(rowid, print_name, filename, tags, notes, designer, filament_type)
+                VALUES (new.id, new.print_name, new.filename, new.tags, new.notes, new.designer, new.filament_type);
+            END
+        """))
+    except Exception:
+        pass
+
+    try:
+        await conn.execute(text("""
+            CREATE TRIGGER IF NOT EXISTS archive_fts_delete AFTER DELETE ON print_archives BEGIN
+                INSERT INTO archive_fts(archive_fts, rowid, print_name, filename, tags, notes, designer, filament_type)
+                VALUES ('delete', old.id, old.print_name, old.filename, old.tags, old.notes, old.designer, old.filament_type);
+            END
+        """))
+    except Exception:
+        pass
+
+    try:
+        await conn.execute(text("""
+            CREATE TRIGGER IF NOT EXISTS archive_fts_update AFTER UPDATE ON print_archives BEGIN
+                INSERT INTO archive_fts(archive_fts, rowid, print_name, filename, tags, notes, designer, filament_type)
+                VALUES ('delete', old.id, old.print_name, old.filename, old.tags, old.notes, old.designer, old.filament_type);
+                INSERT INTO archive_fts(rowid, print_name, filename, tags, notes, designer, filament_type)
+                VALUES (new.id, new.print_name, new.filename, new.tags, new.notes, new.designer, new.filament_type);
+            END
+        """))
     except Exception:
         pass
 

@@ -733,14 +733,24 @@ class ArchiveService:
     async def list_archives(
         self,
         printer_id: int | None = None,
+        project_id: int | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[PrintArchive]:
         """List archives with optional filtering."""
-        query = select(PrintArchive).order_by(PrintArchive.created_at.desc())
+        from sqlalchemy.orm import selectinload
+
+        query = (
+            select(PrintArchive)
+            .options(selectinload(PrintArchive.project))
+            .order_by(PrintArchive.created_at.desc())
+        )
 
         if printer_id:
             query = query.where(PrintArchive.printer_id == printer_id)
+
+        if project_id:
+            query = query.where(PrintArchive.project_id == project_id)
 
         query = query.limit(limit).offset(offset)
         result = await self.db.execute(query)

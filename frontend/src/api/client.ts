@@ -176,6 +176,8 @@ export interface ArchiveDuplicate {
 export interface Archive {
   id: number;
   printer_id: number | null;
+  project_id: number | null;
+  project_name: string | null;
   filename: string;
   file_path: string;
   file_size: number;
@@ -229,11 +231,189 @@ export interface ArchiveStats {
   total_energy_cost: number;
 }
 
+export interface FailureAnalysis {
+  period_days: number;
+  total_prints: number;
+  failed_prints: number;
+  failure_rate: number;
+  failures_by_reason: Record<string, number>;
+  failures_by_filament: Record<string, number>;
+  failures_by_printer: Record<string, number>;
+  failures_by_hour: Record<number, number>;
+  recent_failures: Array<{
+    id: number;
+    print_name: string;
+    failure_reason: string | null;
+    filament_type: string | null;
+    printer_id: number | null;
+    created_at: string | null;
+  }>;
+  trend: Array<{
+    week_start: string;
+    total_prints: number;
+    failed_prints: number;
+    failure_rate: number;
+  }>;
+}
+
 export interface BulkUploadResult {
   uploaded: number;
   failed: number;
   results: Array<{ filename: string; id: number; status: string }>;
   errors: Array<{ filename: string; error: string }>;
+}
+
+// Archive Comparison types
+export interface ComparisonArchiveInfo {
+  id: number;
+  print_name: string;
+  status: string;
+  created_at: string | null;
+  printer_id: number | null;
+  project_name: string | null;
+}
+
+export interface ComparisonField {
+  field: string;
+  label: string;
+  unit: string | null;
+  values: (string | number | null)[];
+  raw_values: (string | number | null)[];
+  has_difference: boolean;
+}
+
+export interface SuccessCorrelationInsight {
+  field: string;
+  label: string;
+  insight: string;
+  success_avg?: number;
+  failed_avg?: number;
+  success_values?: string[];
+  failed_values?: string[];
+}
+
+export interface SuccessCorrelation {
+  has_both_outcomes: boolean;
+  message?: string;
+  successful_count?: number;
+  failed_count?: number;
+  insights?: SuccessCorrelationInsight[];
+}
+
+export interface ArchiveComparison {
+  archives: ComparisonArchiveInfo[];
+  comparison: ComparisonField[];
+  differences: ComparisonField[];
+  success_correlation: SuccessCorrelation;
+}
+
+export interface SimilarArchive {
+  archive: {
+    id: number;
+    print_name: string;
+    status: string;
+    created_at: string | null;
+  };
+  match_reason: string;
+  match_score: number;
+}
+
+// Project types
+export interface ProjectStats {
+  total_archives: number;
+  completed_prints: number;
+  failed_prints: number;
+  queued_prints: number;
+  in_progress_prints: number;
+  total_print_time_hours: number;
+  total_filament_grams: number;
+  progress_percent: number | null;
+}
+
+export interface Project {
+  id: number;
+  name: string;
+  description: string | null;
+  color: string | null;
+  status: string;  // active, completed, archived
+  target_count: number | null;
+  created_at: string;
+  updated_at: string;
+  stats?: ProjectStats;
+}
+
+export interface ArchivePreview {
+  id: number;
+  print_name: string | null;
+  thumbnail_path: string | null;
+  status: string;
+}
+
+export interface ProjectListItem {
+  id: number;
+  name: string;
+  description: string | null;
+  color: string | null;
+  status: string;
+  target_count: number | null;
+  created_at: string;
+  archive_count: number;
+  queue_count: number;
+  progress_percent: number | null;
+  archives: ArchivePreview[];
+}
+
+export interface ProjectCreate {
+  name: string;
+  description?: string;
+  color?: string;
+  target_count?: number;
+}
+
+export interface ProjectUpdate {
+  name?: string;
+  description?: string;
+  color?: string;
+  status?: string;
+  target_count?: number;
+}
+
+// API Key types
+export interface APIKey {
+  id: number;
+  name: string;
+  key_prefix: string;
+  can_queue: boolean;
+  can_control_printer: boolean;
+  can_read_status: boolean;
+  printer_ids: number[] | null;
+  enabled: boolean;
+  last_used: string | null;
+  created_at: string;
+  expires_at: string | null;
+}
+
+export interface APIKeyCreate {
+  name: string;
+  can_queue?: boolean;
+  can_control_printer?: boolean;
+  can_read_status?: boolean;
+  printer_ids?: number[] | null;
+  expires_at?: string | null;
+}
+
+export interface APIKeyCreateResponse extends APIKey {
+  key: string;  // Full key, only shown on creation
+}
+
+export interface APIKeyUpdate {
+  name?: string;
+  can_queue?: boolean;
+  can_control_printer?: boolean;
+  can_read_status?: boolean;
+  printer_ids?: number[] | null;
+  enabled?: boolean;
+  expires_at?: string | null;
 }
 
 // Settings types
@@ -970,16 +1150,35 @@ export const api = {
     request<{ used_bytes: number | null; free_bytes: number | null }>(`/printers/${printerId}/storage`),
 
   // Archives
-  getArchives: (printerId?: number, limit = 50, offset = 0) => {
+  getArchives: (printerId?: number, projectId?: number, limit = 50, offset = 0) => {
     const params = new URLSearchParams();
     if (printerId) params.set('printer_id', String(printerId));
+    if (projectId) params.set('project_id', String(projectId));
     params.set('limit', String(limit));
     params.set('offset', String(offset));
     return request<Archive[]>(`/archives/?${params}`);
   },
   getArchive: (id: number) => request<Archive>(`/archives/${id}`),
+  searchArchives: (query: string, options?: {
+    printerId?: number;
+    projectId?: number;
+    status?: string;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const params = new URLSearchParams();
+    params.set('q', query);
+    if (options?.printerId) params.set('printer_id', String(options.printerId));
+    if (options?.projectId) params.set('project_id', String(options.projectId));
+    if (options?.status) params.set('status', options.status);
+    if (options?.limit) params.set('limit', String(options.limit));
+    if (options?.offset) params.set('offset', String(options.offset));
+    return request<Archive[]>(`/archives/search?${params}`);
+  },
+  rebuildSearchIndex: () => request<{ message: string }>('/archives/search/rebuild-index', { method: 'POST' }),
   updateArchive: (id: number, data: {
     printer_id?: number | null;
+    project_id?: number | null;
     print_name?: string;
     is_favorite?: boolean;
     tags?: string;
@@ -996,6 +1195,81 @@ export const api = {
   deleteArchive: (id: number) =>
     request<void>(`/archives/${id}`, { method: 'DELETE' }),
   getArchiveStats: () => request<ArchiveStats>('/archives/stats'),
+  getFailureAnalysis: (options?: { days?: number; printerId?: number; projectId?: number }) => {
+    const params = new URLSearchParams();
+    if (options?.days) params.set('days', String(options.days));
+    if (options?.printerId) params.set('printer_id', String(options.printerId));
+    if (options?.projectId) params.set('project_id', String(options.projectId));
+    return request<FailureAnalysis>(`/archives/analysis/failures?${params}`);
+  },
+  compareArchives: (archiveIds: number[]) =>
+    request<ArchiveComparison>(`/archives/compare?archive_ids=${archiveIds.join(',')}`),
+  findSimilarArchives: (archiveId: number, limit = 10) =>
+    request<SimilarArchive[]>(`/archives/${archiveId}/similar?limit=${limit}`),
+  exportArchives: async (options?: {
+    format?: 'csv' | 'xlsx';
+    fields?: string[];
+    printerId?: number;
+    projectId?: number;
+    status?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    search?: string;
+  }): Promise<{ blob: Blob; filename: string }> => {
+    const params = new URLSearchParams();
+    if (options?.format) params.set('format', options.format);
+    if (options?.fields) params.set('fields', options.fields.join(','));
+    if (options?.printerId) params.set('printer_id', String(options.printerId));
+    if (options?.projectId) params.set('project_id', String(options.projectId));
+    if (options?.status) params.set('status', options.status);
+    if (options?.dateFrom) params.set('date_from', options.dateFrom);
+    if (options?.dateTo) params.set('date_to', options.dateTo);
+    if (options?.search) params.set('search', options.search);
+
+    const response = await fetch(`${API_BASE}/archives/export?${params}`);
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || `HTTP ${response.status}`);
+    }
+
+    const contentDisposition = response.headers.get('Content-Disposition');
+    let filename = options?.format === 'xlsx' ? 'archives_export.xlsx' : 'archives_export.csv';
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename="?([^"]+)"?/);
+      if (match) filename = match[1];
+    }
+
+    const blob = await response.blob();
+    return { blob, filename };
+  },
+  exportStats: async (options?: {
+    format?: 'csv' | 'xlsx';
+    days?: number;
+    printerId?: number;
+    projectId?: number;
+  }): Promise<{ blob: Blob; filename: string }> => {
+    const params = new URLSearchParams();
+    if (options?.format) params.set('format', options.format);
+    if (options?.days) params.set('days', String(options.days));
+    if (options?.printerId) params.set('printer_id', String(options.printerId));
+    if (options?.projectId) params.set('project_id', String(options.projectId));
+
+    const response = await fetch(`${API_BASE}/archives/stats/export?${params}`);
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || `HTTP ${response.status}`);
+    }
+
+    const contentDisposition = response.headers.get('Content-Disposition');
+    let filename = options?.format === 'xlsx' ? 'stats_export.xlsx' : 'stats_export.csv';
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename="?([^"]+)"?/);
+      if (match) filename = match[1];
+    }
+
+    const blob = await response.blob();
+    return { blob, filename };
+  },
   getArchiveDuplicates: (id: number) =>
     request<{ duplicates: ArchiveDuplicate[]; count: number }>(`/archives/${id}/duplicates`),
   backfillContentHashes: () =>
@@ -1567,4 +1841,56 @@ export const api = {
   deleteExternalLinkIcon: (id: number) =>
     request<ExternalLink>(`/external-links/${id}/icon`, { method: 'DELETE' }),
   getExternalLinkIconUrl: (id: number) => `${API_BASE}/external-links/${id}/icon`,
+
+  // Projects
+  getProjects: (status?: string) => {
+    const params = new URLSearchParams();
+    if (status) params.set('status', status);
+    return request<ProjectListItem[]>(`/projects/?${params}`);
+  },
+  getProject: (id: number) => request<Project>(`/projects/${id}`),
+  createProject: (data: ProjectCreate) =>
+    request<Project>('/projects/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateProject: (id: number, data: ProjectUpdate) =>
+    request<Project>(`/projects/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  deleteProject: (id: number) =>
+    request<{ message: string }>(`/projects/${id}`, { method: 'DELETE' }),
+  getProjectArchives: (id: number, limit = 100, offset = 0) =>
+    request<Archive[]>(`/projects/${id}/archives?limit=${limit}&offset=${offset}`),
+  addArchivesToProject: (projectId: number, archiveIds: number[]) =>
+    request<{ message: string }>(`/projects/${projectId}/add-archives`, {
+      method: 'POST',
+      body: JSON.stringify({ archive_ids: archiveIds }),
+    }),
+  removeArchivesFromProject: (projectId: number, archiveIds: number[]) =>
+    request<{ message: string }>(`/projects/${projectId}/remove-archives`, {
+      method: 'POST',
+      body: JSON.stringify({ archive_ids: archiveIds }),
+    }),
+  addQueueItemsToProject: (projectId: number, queueItemIds: number[]) =>
+    request<{ message: string }>(`/projects/${projectId}/add-queue`, {
+      method: 'POST',
+      body: JSON.stringify({ queue_item_ids: queueItemIds }),
+    }),
+
+  // API Keys
+  getAPIKeys: () => request<APIKey[]>('/api-keys/'),
+  createAPIKey: (data: APIKeyCreate) =>
+    request<APIKeyCreateResponse>('/api-keys/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateAPIKey: (id: number, data: APIKeyUpdate) =>
+    request<APIKey>(`/api-keys/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  deleteAPIKey: (id: number) =>
+    request<{ message: string }>(`/api-keys/${id}`, { method: 'DELETE' }),
 };

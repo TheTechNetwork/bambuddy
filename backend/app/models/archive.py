@@ -10,6 +10,9 @@ class PrintArchive(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     printer_id: Mapped[int | None] = mapped_column(ForeignKey("printers.id"), nullable=True)
+    project_id: Mapped[int | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
+    )
 
     # File info
     filename: Mapped[str] = mapped_column(String(255))
@@ -63,6 +66,8 @@ class PrintArchive(Base):
 
     # Relationships
     printer: Mapped["Printer | None"] = relationship(back_populates="archives")
+    project: Mapped["Project | None"] = relationship(back_populates="archives")
 
 
 from backend.app.models.printer import Printer  # noqa: E402, F811
+from backend.app.models.project import Project  # noqa: E402, F811

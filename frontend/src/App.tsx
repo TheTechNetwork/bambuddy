@@ -8,6 +8,7 @@ import { StatsPage } from './pages/StatsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ProfilesPage } from './pages/ProfilesPage';
 import { MaintenancePage } from './pages/MaintenancePage';
+import { ProjectsPage } from './pages/ProjectsPage';
 import { CameraPage } from './pages/CameraPage';
 import { ExternalLinkPage } from './pages/ExternalLinkPage';
 import { useWebSocket } from './hooks/useWebSocket';
@@ -46,6 +47,7 @@ function App() {
                   <Route path="stats" element={<StatsPage />} />
                   <Route path="profiles" element={<ProfilesPage />} />
                   <Route path="maintenance" element={<MaintenancePage />} />
+                  <Route path="projects" element={<ProjectsPage />} />
                   <Route path="settings" element={<SettingsPage />} />
                   <Route path="external/:id" element={<ExternalLinkPage />} />
                 </Route>

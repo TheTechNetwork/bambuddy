@@ -7,6 +7,7 @@ export default {
     stats: 'Statistiken',
     profiles: 'Profile',
     maintenance: 'Wartung',
+    projects: 'Projekte',
     settings: 'Einstellungen',
     collapseSidebar: 'Seitenleiste einklappen',
     expandSidebar: 'Seitenleiste ausklappen',

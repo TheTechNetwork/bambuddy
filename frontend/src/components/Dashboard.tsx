@@ -31,6 +31,8 @@ interface DashboardProps {
   widgets: DashboardWidget[];
   storageKey: string;
   columns?: number;
+  hideControls?: boolean;
+  onResetLayout?: () => void;
 }
 
 interface LayoutState {
@@ -124,7 +126,7 @@ function SortableWidget({
   );
 }
 
-export function Dashboard({ widgets, storageKey, columns = 4 }: DashboardProps) {
+export function Dashboard({ widgets, storageKey, columns = 4, hideControls = false, onResetLayout }: DashboardProps) {
   // Build default sizes from widget definitions
   const getDefaultSizes = () => {
     const sizes: Record<string, 1 | 2 | 4> = {};
@@ -233,6 +235,7 @@ export function Dashboard({ widgets, storageKey, columns = 4 }: DashboardProps) 
       sizes: getDefaultSizes(),
     };
     setLayout(defaultLayout);
+    onResetLayout?.();
   };
 
   // Get ordered widgets
@@ -246,22 +249,24 @@ export function Dashboard({ widgets, storageKey, columns = 4 }: DashboardProps) 
   return (
     <div className="space-y-4">
       {/* Dashboard Controls */}
-      <div className="flex items-center justify-end gap-2">
-        {hiddenWidgets.length > 0 && (
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setShowHiddenPanel(!showHiddenPanel)}
-          >
-            <Eye className="w-4 h-4" />
-            {hiddenWidgets.length} Hidden
+      {!hideControls && (
+        <div className="flex items-center justify-end gap-2">
+          {hiddenWidgets.length > 0 && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setShowHiddenPanel(!showHiddenPanel)}
+            >
+              <Eye className="w-4 h-4" />
+              {hiddenWidgets.length} Hidden
+            </Button>
+          )}
+          <Button variant="secondary" size="sm" onClick={resetLayout}>
+            <RotateCcw className="w-4 h-4" />
+            Reset Layout
           </Button>
-        )}
-        <Button variant="secondary" size="sm" onClick={resetLayout}>
-          <RotateCcw className="w-4 h-4" />
-          Reset Layout
-        </Button>
-      </div>
+        </div>
+      )}
 
       {/* Hidden Widgets Panel */}
       {showHiddenPanel && hiddenWidgets.length > 0 && (
