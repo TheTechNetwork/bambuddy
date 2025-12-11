@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { render } from '../utils';
 import type { NotificationProvider } from '../../api/client';
@@ -67,6 +67,9 @@ const createMockProvider = (
   daily_digest_enabled: false,
   daily_digest_time: null,
   printer_id: null,
+  last_success: null,
+  last_error: null,
+  last_error_at: null,
   created_at: '2024-01-01T00:00:00Z',
   updated_at: '2024-01-01T00:00:00Z',
   ...overrides,

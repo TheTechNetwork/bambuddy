@@ -38,8 +38,6 @@ const createMockPlug = (overrides: Partial<SmartPlug> = {}): SmartPlug => ({
   last_state: 'ON',
   last_checked: null,
   auto_off_executed: false,
-  auto_off_pending: false,
-  auto_off_pending_since: null,
   created_at: '2024-01-01T00:00:00Z',
   updated_at: '2024-01-01T00:00:00Z',
   ...overrides,

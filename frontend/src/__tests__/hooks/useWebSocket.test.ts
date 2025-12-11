@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { waitFor } from '@testing-library/react';
 
 // Mock WebSocket
 class MockWebSocket {
@@ -32,7 +32,7 @@ class MockWebSocket {
     }, 10);
   }
 
-  send(data: string) {
+  send(_data: string) {
     // Mock send
   }
 

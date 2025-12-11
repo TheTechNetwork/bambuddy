@@ -103,9 +103,10 @@ export const handlers = [
 
   http.post('/api/v1/smart-plugs/', async ({ request }) => {
     const body = (await request.json()) as Record<string, unknown>;
+    const { id: _id, ...baseData } = mockSmartPlugs[0];
     const newPlug = {
       id: mockSmartPlugs.length + 1,
-      ...mockSmartPlugs[0],
+      ...baseData,
       ...body,
     };
     return HttpResponse.json(newPlug);
@@ -171,9 +172,10 @@ export const handlers = [
 
   http.post('/api/v1/notifications/', async ({ request }) => {
     const body = (await request.json()) as Record<string, unknown>;
+    const { id: _id, ...baseData } = mockNotificationProviders[0];
     const newProvider = {
       id: mockNotificationProviders.length + 1,
-      ...mockNotificationProviders[0],
+      ...baseData,
       ...body,
     };
     return HttpResponse.json(newProvider);

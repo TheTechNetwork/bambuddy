@@ -63,7 +63,9 @@ class MockWebSocket {
   onmessage: ((event: MessageEvent) => void) | null = null;
   onerror: ((event: Event) => void) | null = null;
 
-  constructor(public url: string) {
+  url: string;
+  constructor(url: string) {
+    this.url = url;
     setTimeout(() => this.onopen?.(new Event('open')), 0);
   }
 
