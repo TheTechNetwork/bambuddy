@@ -37,6 +37,9 @@ class AppSettings(BaseModel):
     # Default printer for operations
     default_printer_id: int | None = Field(default=None, description="Default printer ID for uploads, reprints, etc.")
 
+    # Telemetry
+    telemetry_enabled: bool = Field(default=True, description="Send anonymous usage data to help improve BamBuddy")
+
 
 class AppSettingsUpdate(BaseModel):
     """Schema for updating settings (all fields optional)."""
@@ -61,3 +64,4 @@ class AppSettingsUpdate(BaseModel):
     date_format: str | None = None
     time_format: str | None = None
     default_printer_id: int | None = None
+    telemetry_enabled: bool | None = None

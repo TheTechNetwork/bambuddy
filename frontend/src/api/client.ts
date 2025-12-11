@@ -438,6 +438,8 @@ export interface AppSettings {
   time_format: 'system' | '12h' | '24h';
   // Default printer
   default_printer_id: number | null;
+  // Telemetry
+  telemetry_enabled: boolean;
 }
 
 export type AppSettingsUpdate = Partial<AppSettings>;

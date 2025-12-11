@@ -71,6 +71,7 @@ from backend.app.services.tasmota import tasmota_service
 from backend.app.models.smart_plug import SmartPlug
 from backend.app.services.spoolman import get_spoolman_client, init_spoolman_client, close_spoolman_client
 from backend.app.api.routes.maintenance import _get_printer_maintenance_internal, ensure_default_types
+from backend.app.services.telemetry import start_telemetry_loop
 
 
 # Track active prints: {(printer_id, filename): archive_id}
@@ -1186,6 +1187,9 @@ async def lifespan(app: FastAPI):
 
     # Start AMS history recording
     start_ams_history_recording()
+
+    # Start anonymous telemetry (opt-out via settings)
+    asyncio.create_task(start_telemetry_loop(async_session))
 
     yield
 
