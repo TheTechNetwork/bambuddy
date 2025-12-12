@@ -19,7 +19,7 @@
   <a href="#-features">Features</a> •
   <a href="#-screenshots">Screenshots</a> •
   <a href="#-quick-start">Quick Start</a> •
-  <a href="https://github.com/maziggy/bambuddy-wiki">Documentation</a> •
+  <a href="http://wiki.bambuddy.cool">Documentation</a> •
   <a href="#-contributing">Contributing</a>
 </p>
 
@@ -124,7 +124,7 @@
 
 <p align="center">
   <img src="docs/screenshots/archives.png" alt="Archives" width="800">
-  <br><em>Print archive with context menu and project assignment</em>
+  <br><em>Print archive with 3D preview and project assignment</em>
 </p>
 
 <p align="center">
@@ -143,52 +143,52 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/maintenance_status.png" alt="Maintenance Status" width="800">
+  <img src="docs/screenshots/maintenance-1.png" alt="Maintenance" width="800">
   <br><em>Maintenance tracking per printer</em>
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/maintenance_overdue.png" alt="Maintenance Overdue" width="800">
-  <br><em>Overdue maintenance alerts</em>
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/maintenance_settings.png" alt="Maintenance Settings" width="800">
+  <img src="docs/screenshots/maintenance-2.png" alt="Maintenance Settings" width="800">
   <br><em>Configure maintenance types and intervals</em>
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/profiles_create.png" alt="Profiles Create" width="800">
-  <br><em>Create new filament presets</em>
+  <img src="docs/screenshots/cloud_profiles-1.png" alt="Cloud Profiles" width="800">
+  <br><em>Bambu Cloud filament profiles</em>
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/profiles_edit.png" alt="Profiles Edit" width="800">
+  <img src="docs/screenshots/cloud_profiles-2.png" alt="Cloud Profiles Edit" width="800">
   <br><em>Edit filament preset settings</em>
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/profiles_k.png" alt="K-Profiles" width="800">
+  <img src="docs/screenshots/k_profiles-1.png" alt="K-Profiles" width="800">
   <br><em>Pressure advance (K-factor) profiles</em>
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/settings.png" alt="Settings" width="800">
-  <br><em>Configuration and integrations</em>
+  <img src="docs/screenshots/k_profiles-2.png" alt="K-Profiles Edit" width="800">
+  <br><em>Edit K-factor profile settings</em>
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/smart_plugs.png" alt="Smart Plugs" width="800">
-  <br><em>Smart plug control and automation</em>
+  <img src="docs/screenshots/settings_general.png" alt="Settings" width="800">
+  <br><em>General configuration and integrations</em>
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/notifications.png" alt="Notifications" width="800">
+  <img src="docs/screenshots/settings_smart_plugs.png" alt="Smart Plugs" width="800">
+  <br><em>Smart plug control and energy monitoring</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/settings_notifications.png" alt="Notifications" width="800">
   <br><em>Multi-provider notification system</em>
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/api_keys.png" alt="API Keys" width="800">
+  <img src="docs/screenshots/settings_api_keys.png" alt="API Keys" width="800">
   <br><em>API keys and webhook endpoints</em>
 </p>
 
@@ -219,7 +219,7 @@ uvicorn backend.app.main:app --host 0.0.0.0 --port 8000
 
 Open **http://localhost:8000** and add your printer!
 
-> **Need detailed instructions?** See the [Installation Guide](https://github.com/maziggy/bambuddy-wiki/blob/main/Installation.md)
+> **Need detailed instructions?** See the [Installation Guide](http://wiki.bambuddy.cool/getting-started/installation/)
 
 ### Enabling LAN Mode
 
@@ -232,13 +232,13 @@ Open **http://localhost:8000** and add your printer!
 
 ## 📚 Documentation
 
-Full documentation available in the **[Wiki](https://github.com/maziggy/bambuddy-wiki)**:
+Full documentation available at **[wiki.bambuddy.cool](http://wiki.bambuddy.cool)**:
 
-- [Installation](https://github.com/maziggy/bambuddy-wiki/blob/main/Installation.md) — All installation methods
-- [Getting Started](https://github.com/maziggy/bambuddy-wiki/blob/main/Getting-Started.md) — First printer setup
-- [Features](https://github.com/maziggy/bambuddy-wiki#feature-documentation) — Detailed feature guides
-- [Troubleshooting](https://github.com/maziggy/bambuddy-wiki/blob/main/Troubleshooting.md) — Common issues & solutions
-- [API Reference](https://github.com/maziggy/bambuddy-wiki/blob/main/API-Reference.md) — REST API documentation
+- [Installation](http://wiki.bambuddy.cool/getting-started/installation/) — All installation methods
+- [Getting Started](http://wiki.bambuddy.cool/getting-started/) — First printer setup
+- [Features](http://wiki.bambuddy.cool/features/) — Detailed feature guides
+- [Troubleshooting](http://wiki.bambuddy.cool/reference/troubleshooting/) — Common issues & solutions
+- [API Reference](http://wiki.bambuddy.cool/reference/api/) — REST API documentation
 
 ---
 
@@ -311,5 +311,5 @@ MIT License — see [LICENSE](LICENSE) for details.
   <br><br>
   <a href="https://github.com/maziggy/bambuddy/issues">Report Bug</a> •
   <a href="https://github.com/maziggy/bambuddy/issues">Request Feature</a> •
-  <a href="https://github.com/maziggy/bambuddy-wiki">Documentation</a>
+  <a href="http://wiki.bambuddy.cool">Documentation</a>
 </p>
