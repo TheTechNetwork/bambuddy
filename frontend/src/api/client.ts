@@ -2016,3 +2016,30 @@ export interface SystemInfo {
     percent: number;
   };
 }
+
+// Discovery types
+export interface DiscoveredPrinter {
+  serial: string;
+  name: string;
+  ip_address: string;
+  model: string | null;
+  discovered_at: string | null;
+}
+
+export interface DiscoveryStatus {
+  running: boolean;
+}
+
+// Discovery API
+export const discoveryApi = {
+  getStatus: () => request<DiscoveryStatus>('/discovery/status'),
+
+  startDiscovery: (duration: number = 10) =>
+    request<DiscoveryStatus>(`/discovery/start?duration=${duration}`, { method: 'POST' }),
+
+  stopDiscovery: () =>
+    request<DiscoveryStatus>('/discovery/stop', { method: 'POST' }),
+
+  getDiscoveredPrinters: () =>
+    request<DiscoveredPrinter[]>('/discovery/printers'),
+};

@@ -26,10 +26,12 @@ import {
   LayoutList,
   Layers,
   Video,
+  Search,
+  Loader2,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api/client';
-import type { Printer, PrinterCreate, AMSUnit } from '../api/client';
+import { api, discoveryApi } from '../api/client';
+import type { Printer, PrinterCreate, AMSUnit, DiscoveredPrinter } from '../api/client';
 import { Card, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -1425,9 +1427,11 @@ function PrinterCard({
 function AddPrinterModal({
   onClose,
   onAdd,
+  existingSerials,
 }: {
   onClose: () => void;
   onAdd: (data: PrinterCreate) => void;
+  existingSerials: string[];
 }) {
   const [form, setForm] = useState<PrinterCreate>({
     name: '',
@@ -1437,6 +1441,114 @@ function AddPrinterModal({
     model: '',
     auto_archive: true,
   });
+
+  // Discovery state
+  const [discovering, setDiscovering] = useState(false);
+  const [discovered, setDiscovered] = useState<DiscoveredPrinter[]>([]);
+  const [discoveryError, setDiscoveryError] = useState('');
+  const [hasScanned, setHasScanned] = useState(false);
+
+  // Filter out already-added printers
+  const newPrinters = discovered.filter(p => !existingSerials.includes(p.serial));
+
+  const startDiscovery = async () => {
+    setDiscoveryError('');
+    setDiscovered([]);
+    setDiscovering(true);
+    setHasScanned(false);
+
+    try {
+      await discoveryApi.startDiscovery(10);
+
+      // Poll for discovered printers every second
+      const pollInterval = setInterval(async () => {
+        try {
+          const printers = await discoveryApi.getDiscoveredPrinters();
+          setDiscovered(printers);
+        } catch (e) {
+          console.error('Failed to get discovered printers:', e);
+        }
+      }, 1000);
+
+      // Stop after 10 seconds
+      setTimeout(async () => {
+        clearInterval(pollInterval);
+        try {
+          await discoveryApi.stopDiscovery();
+        } catch (e) {
+          // Ignore stop errors
+        }
+        setDiscovering(false);
+        setHasScanned(true);
+        // Final fetch
+        try {
+          const printers = await discoveryApi.getDiscoveredPrinters();
+          setDiscovered(printers);
+        } catch (e) {
+          console.error('Failed to get final discovered printers:', e);
+        }
+      }, 10000);
+    } catch (e) {
+      console.error('Failed to start discovery:', e);
+      setDiscoveryError(e instanceof Error ? e.message : 'Failed to start discovery');
+      setDiscovering(false);
+      setHasScanned(true);
+    }
+  };
+
+  // Map SSDP model codes to dropdown values
+  const mapModelCode = (ssdpModel: string | null): string => {
+    if (!ssdpModel) return '';
+    const modelMap: Record<string, string> = {
+      // H2 Series
+      'O1D': 'H2D',
+      'O1C': 'H2C',
+      'O1S': 'H2S',
+      // X1 Series
+      'BL-P001': 'X1C',
+      'BL-P002': 'X1',
+      'BL-P003': 'X1E',
+      // P Series
+      'C11': 'P1S',
+      'C12': 'P1P',
+      'C13': 'P2S',
+      // A1 Series
+      'N2S': 'A1',
+      'N1': 'A1 Mini',
+      // Direct matches
+      'X1C': 'X1C',
+      'X1': 'X1',
+      'X1E': 'X1E',
+      'P1S': 'P1S',
+      'P1P': 'P1P',
+      'P2S': 'P2S',
+      'A1': 'A1',
+      'A1 Mini': 'A1 Mini',
+      'H2D': 'H2D',
+      'H2C': 'H2C',
+      'H2S': 'H2S',
+    };
+    return modelMap[ssdpModel] || ssdpModel;
+  };
+
+  const selectPrinter = (printer: DiscoveredPrinter) => {
+    setForm({
+      ...form,
+      name: printer.name || '',
+      serial_number: printer.serial,
+      ip_address: printer.ip_address,
+      model: mapModelCode(printer.model),
+    });
+    // Clear discovery results after selection
+    setDiscovered([]);
+  };
+
+  // Cleanup discovery on unmount
+  useEffect(() => {
+    return () => {
+      discoveryApi.stopDiscovery().catch(() => {});
+    };
+  }, []);
 
   // Close on Escape key
   useEffect(() => {
@@ -1455,6 +1567,73 @@ function AddPrinterModal({
       <Card className="w-full max-w-md" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
         <CardContent>
           <h2 className="text-xl font-semibold mb-4">Add Printer</h2>
+
+          {/* Discovery Section */}
+          <div className="mb-4 pb-4 border-b border-bambu-dark-tertiary">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={startDiscovery}
+              disabled={discovering}
+              className="w-full"
+            >
+              {discovering ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Scanning...
+                </>
+              ) : (
+                <>
+                  <Search className="w-4 h-4" />
+                  Discover Printers on Network
+                </>
+              )}
+            </Button>
+
+            {discoveryError && (
+              <div className="mt-2 text-sm text-red-400">{discoveryError}</div>
+            )}
+
+            {newPrinters.length > 0 && (
+              <div className="mt-3 space-y-2 max-h-40 overflow-y-auto">
+                {newPrinters.map((printer) => (
+                  <div
+                    key={printer.serial}
+                    className="flex items-center justify-between p-2 bg-bambu-dark rounded-lg hover:bg-bambu-dark-secondary cursor-pointer transition-colors"
+                    onClick={() => selectPrinter(printer)}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-white text-sm truncate">
+                        {printer.name || printer.serial}
+                      </p>
+                      <p className="text-xs text-bambu-gray truncate">
+                        {printer.model || 'Unknown'} • {printer.ip_address}
+                      </p>
+                    </div>
+                    <ChevronDown className="w-4 h-4 text-bambu-gray -rotate-90 flex-shrink-0 ml-2" />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {discovering && (
+              <p className="mt-2 text-sm text-bambu-gray text-center">
+                Scanning network...
+              </p>
+            )}
+
+            {hasScanned && !discovering && discovered.length === 0 && (
+              <p className="mt-2 text-sm text-bambu-gray text-center">
+                No printers found on the network.
+              </p>
+            )}
+
+            {hasScanned && !discovering && discovered.length > 0 && newPrinters.length === 0 && (
+              <p className="mt-2 text-sm text-bambu-gray text-center">
+                All discovered printers are already configured.
+              </p>
+            )}
+          </div>
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -2152,6 +2331,7 @@ export function PrintersPage() {
         <AddPrinterModal
           onClose={() => setShowAddModal(false)}
           onAdd={(data) => addMutation.mutate(data)}
+          existingSerials={printers?.map(p => p.serial_number) || []}
         />
       )}
     </div>

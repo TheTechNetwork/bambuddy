@@ -56,6 +56,7 @@ from backend.app.api.routes import (
     archives,
     camera,
     cloud,
+    discovery,
     external_links,
     filaments,
     kprofiles,
@@ -1530,6 +1531,7 @@ app.include_router(webhook.router, prefix=app_settings.api_prefix)
 app.include_router(ams_history.router, prefix=app_settings.api_prefix)
 app.include_router(system.router, prefix=app_settings.api_prefix)
 app.include_router(websocket.router, prefix=app_settings.api_prefix)
+app.include_router(discovery.router, prefix=app_settings.api_prefix)
 
 
 # Serve static files (React build)
