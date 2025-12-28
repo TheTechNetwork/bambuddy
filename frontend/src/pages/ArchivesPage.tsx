@@ -785,7 +785,12 @@ function ArchiveCard({
           src={api.getArchiveTimelapse(archive.id)}
           title={`${archive.print_name || archive.filename} - Timelapse`}
           downloadFilename={`${archive.print_name || archive.filename}_timelapse.mp4`}
+          archiveId={archive.id}
           onClose={() => setShowTimelapse(false)}
+          onEdit={() => {
+            queryClient.invalidateQueries({ queryKey: ['archives'] });
+            setShowTimelapse(false);  // Close viewer to reload fresh video
+          }}
         />
       )}
 

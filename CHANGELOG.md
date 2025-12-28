@@ -5,6 +5,7 @@ All notable changes to Bambuddy will be documented in this file.
 ## [0.1.6b] - 2025-12-28
 
 ### Added
+- **Timelapse editor** - Edit timelapse videos with trim, speed adjustment (0.25x-4x), and music overlay. Uses FFmpeg for server-side processing with browser-based preview.
 - **Docker printer discovery** - Subnet scanning for discovering printers when running in Docker with `network_mode: host`. Automatically detects Docker environment and shows subnet input field in Add Printer dialog.
 - **Printer model mapping** - Discovery now shows friendly model names (X1C, H2D, P1S) instead of raw SSDP codes (BL-P001, O1D, C11).
 - **Discovery API tests** - Comprehensive test coverage for discovery endpoints.
@@ -14,6 +15,7 @@ All notable changes to Bambuddy will be documented in this file.
 - **Attachment file validation** - File type validation for project attachments (images, documents, 3D files, archives, scripts, configs).
 
 ### Changed
+- **Timelapse viewer** - Default playback speed changed from 2x to 1x.
 - **GitHub issue template** - Added mandatory printer firmware version field and LAN-only mode checkbox for better bug reports.
 - **Docker compose** - Clearer comments explaining `network_mode: host` requirement for printer discovery and camera streaming.
 - **Project card design** - Enhanced visual polish with gradients, shadows, and glow effects on hover.

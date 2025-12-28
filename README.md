@@ -48,6 +48,7 @@
 - 3D model preview (Three.js)
 - Duplicate detection & full-text search
 - Photo attachments & failure analysis
+- Timelapse editor (trim, speed, music)
 - Re-print to any connected printer
 - Archive comparison (side-by-side diff)
 

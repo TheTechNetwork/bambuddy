@@ -3,7 +3,7 @@ import logging
 import zipfile
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -875,10 +875,17 @@ async def get_timelapse(archive_id: int, db: AsyncSession = Depends(get_db)):
     if not timelapse_path.exists():
         raise HTTPException(404, "Timelapse file not found")
 
+    # Use file modification time as ETag to bust cache after processing
+    mtime = int(timelapse_path.stat().st_mtime)
+
     return FileResponse(
         path=timelapse_path,
         media_type="video/mp4",
         filename=f"{archive.print_name or 'timelapse'}.mp4",
+        headers={
+            "Cache-Control": "no-cache, must-revalidate",
+            "ETag": f'"{mtime}"',
+        },
     )
 
 
@@ -1158,6 +1165,168 @@ async def upload_timelapse(
         raise HTTPException(500, "Failed to attach timelapse")
 
     return {"status": "attached", "filename": file.filename}
+
+
+@router.get("/{archive_id}/timelapse/info")
+async def get_timelapse_info(archive_id: int, db: AsyncSession = Depends(get_db)):
+    """Get timelapse video metadata for editor."""
+    from backend.app.schemas.timelapse import TimelapseInfoResponse
+    from backend.app.services.timelapse_processor import TimelapseProcessor
+
+    service = ArchiveService(db)
+    archive = await service.get_archive(archive_id)
+    if not archive or not archive.timelapse_path:
+        raise HTTPException(404, "Timelapse not found")
+
+    timelapse_path = settings.base_dir / archive.timelapse_path
+    if not timelapse_path.exists():
+        raise HTTPException(404, "Timelapse file not found")
+
+    try:
+        processor = TimelapseProcessor(timelapse_path)
+        info = await processor.get_info()
+        return TimelapseInfoResponse(**info)
+    except Exception as e:
+        logger.error(f"Failed to get timelapse info: {e}")
+        raise HTTPException(500, f"Failed to get video info: {str(e)}")
+
+
+@router.get("/{archive_id}/timelapse/thumbnails")
+async def get_timelapse_thumbnails(
+    archive_id: int,
+    count: int = Query(10, ge=1, le=30),
+    width: int = Query(160, ge=80, le=320),
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate timeline thumbnail frames for visual scrubbing."""
+    import base64
+
+    from backend.app.schemas.timelapse import ThumbnailResponse
+    from backend.app.services.timelapse_processor import TimelapseProcessor
+
+    service = ArchiveService(db)
+    archive = await service.get_archive(archive_id)
+    if not archive or not archive.timelapse_path:
+        raise HTTPException(404, "Timelapse not found")
+
+    timelapse_path = settings.base_dir / archive.timelapse_path
+    if not timelapse_path.exists():
+        raise HTTPException(404, "Timelapse file not found")
+
+    try:
+        processor = TimelapseProcessor(timelapse_path)
+        thumbnails = await processor.generate_thumbnails(count, width)
+
+        return ThumbnailResponse(
+            thumbnails=[base64.b64encode(data).decode() for _, data in thumbnails],
+            timestamps=[ts for ts, _ in thumbnails],
+        )
+    except Exception as e:
+        logger.error(f"Failed to generate thumbnails: {e}")
+        raise HTTPException(500, f"Failed to generate thumbnails: {str(e)}")
+
+
+@router.post("/{archive_id}/timelapse/process")
+async def process_timelapse(
+    archive_id: int,
+    trim_start: float = Form(0),
+    trim_end: float = Form(None),
+    speed: float = Form(1.0),
+    save_mode: str = Form("new"),
+    output_filename: str = Form(None),
+    audio: UploadFile = File(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """Process timelapse with trim, speed, and optional audio overlay."""
+    import shutil
+    import tempfile
+
+    from backend.app.schemas.timelapse import ProcessResponse
+    from backend.app.services.timelapse_processor import TimelapseProcessor
+
+    # Validate speed
+    if not 0.25 <= speed <= 4.0:
+        raise HTTPException(400, "Speed must be between 0.25 and 4.0")
+
+    if save_mode not in ("replace", "new"):
+        raise HTTPException(400, "save_mode must be 'replace' or 'new'")
+
+    service = ArchiveService(db)
+    archive = await service.get_archive(archive_id)
+    if not archive or not archive.timelapse_path:
+        raise HTTPException(404, "Timelapse not found")
+
+    timelapse_path = settings.base_dir / archive.timelapse_path
+    if not timelapse_path.exists():
+        raise HTTPException(404, "Timelapse file not found")
+
+    archive_dir = timelapse_path.parent
+
+    # Handle audio file
+    audio_temp_path = None
+    if audio and audio.filename:
+        # Validate audio file extension
+        if not audio.filename.lower().endswith((".mp3", ".wav", ".m4a", ".aac", ".ogg")):
+            raise HTTPException(400, "Audio must be .mp3, .wav, .m4a, .aac, or .ogg")
+
+        audio_content = await audio.read()
+        suffix = Path(audio.filename).suffix
+        audio_temp_path = Path(tempfile.gettempdir()) / f"audio_{archive_id}{suffix}"
+        audio_temp_path.write_bytes(audio_content)
+
+    try:
+        processor = TimelapseProcessor(timelapse_path)
+
+        # Determine output path
+        if save_mode == "replace":
+            # Process to temp file first, then replace
+            temp_output = Path(tempfile.gettempdir()) / f"processed_{archive_id}.mp4"
+            output_path = temp_output
+        else:
+            # Save as new file alongside original
+            filename = output_filename or f"{archive.print_name or 'timelapse'}_edited.mp4"
+            # Sanitize filename
+            filename = "".join(c for c in filename if c.isalnum() or c in "._- ")
+            if not filename.endswith(".mp4"):
+                filename += ".mp4"
+            output_path = archive_dir / filename
+
+        success = await processor.process(
+            output_path=output_path,
+            trim_start=trim_start,
+            trim_end=trim_end,
+            speed=speed,
+            audio_path=audio_temp_path,
+        )
+
+        if not success:
+            raise HTTPException(500, "Video processing failed")
+
+        # Handle save mode
+        if save_mode == "replace":
+            # Replace original file
+            shutil.move(str(output_path), str(timelapse_path))
+            final_path = archive.timelapse_path
+            message = "Timelapse replaced successfully"
+        else:
+            final_path = str(output_path.relative_to(settings.base_dir))
+            message = f"Saved as {output_path.name}"
+
+        return ProcessResponse(
+            status="completed",
+            output_path=final_path,
+            message=message,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Timelapse processing failed: {e}")
+        raise HTTPException(500, f"Processing failed: {str(e)}")
+    finally:
+        # Cleanup temp audio file
+        if audio_temp_path and audio_temp_path.exists():
+            audio_temp_path.unlink()
 
 
 # ============================================

@@ -1,22 +1,33 @@
 import { useState, useRef, useEffect } from 'react';
-import { X, Download, Film, Play, Pause, SkipBack, SkipForward } from 'lucide-react';
+import { X, Download, Film, Play, Pause, SkipBack, SkipForward, Pencil } from 'lucide-react';
 import { Button } from './Button';
+import { TimelapseEditorModal } from './TimelapseEditorModal';
 
 interface TimelapseViewerProps {
   src: string;
   title: string;
   downloadFilename: string;
+  archiveId?: number;
   onClose: () => void;
+  onEdit?: () => void;
 }
 
 const SPEED_OPTIONS = [0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4];
 
-export function TimelapseViewer({ src, title, downloadFilename, onClose }: TimelapseViewerProps) {
+export function TimelapseViewer({
+  src,
+  title,
+  downloadFilename,
+  archiveId,
+  onClose,
+  onEdit,
+}: TimelapseViewerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(true);
-  const [playbackRate, setPlaybackRate] = useState(2); // Default to 2x for timelapse
+  const [playbackRate, setPlaybackRate] = useState(1); // Default to 1x
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [showEditor, setShowEditor] = useState(false);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -109,6 +120,12 @@ export function TimelapseViewer({ src, title, downloadFilename, onClose }: Timel
             {title}
           </h3>
           <div className="flex items-center gap-2">
+            {archiveId && (
+              <Button variant="secondary" size="sm" onClick={() => setShowEditor(true)}>
+                <Pencil className="w-4 h-4" />
+                Edit
+              </Button>
+            )}
             <Button variant="secondary" size="sm" onClick={handleDownload}>
               <Download className="w-4 h-4" />
               Download
@@ -208,6 +225,16 @@ export function TimelapseViewer({ src, title, downloadFilename, onClose }: Timel
           </div>
         </div>
       </div>
+
+      {/* Timelapse Editor Modal */}
+      {showEditor && archiveId && (
+        <TimelapseEditorModal
+          archiveId={archiveId}
+          timelapseSrc={src}
+          onClose={() => setShowEditor(false)}
+          onSave={onEdit}
+        />
+      )}
     </div>
   );
 }

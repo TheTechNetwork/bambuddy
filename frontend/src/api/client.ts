@@ -1404,7 +1404,7 @@ export const api = {
   getArchiveThumbnail: (id: number) => `${API_BASE}/archives/${id}/thumbnail`,
   getArchiveDownload: (id: number) => `${API_BASE}/archives/${id}/download`,
   getArchiveGcode: (id: number) => `${API_BASE}/archives/${id}/gcode`,
-  getArchiveTimelapse: (id: number) => `${API_BASE}/archives/${id}/timelapse`,
+  getArchiveTimelapse: (id: number) => `${API_BASE}/archives/${id}/timelapse?v=${Date.now()}`,
   scanArchiveTimelapse: (id: number) =>
     request<{
       status: string;
@@ -1423,6 +1423,56 @@ export const api = {
     const formData = new FormData();
     formData.append('file', file);
     const response = await fetch(`${API_BASE}/archives/${archiveId}/timelapse/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || `HTTP ${response.status}`);
+    }
+    return response.json();
+  },
+  // Timelapse Editor
+  getTimelapseInfo: (archiveId: number) =>
+    request<{
+      duration: number;
+      width: number;
+      height: number;
+      fps: number;
+      codec: string;
+      file_size: number;
+      has_audio: boolean;
+    }>(`/archives/${archiveId}/timelapse/info`),
+  getTimelapseThumbnails: (archiveId: number, count: number = 10) =>
+    request<{
+      thumbnails: string[];
+      timestamps: number[];
+    }>(`/archives/${archiveId}/timelapse/thumbnails?count=${count}`),
+  processTimelapse: async (
+    archiveId: number,
+    params: {
+      trimStart?: number;
+      trimEnd?: number;
+      speed?: number;
+      saveMode: 'replace' | 'new';
+      outputFilename?: string;
+    },
+    audioFile?: File
+  ): Promise<{ status: string; output_path: string | null; message: string }> => {
+    const formData = new FormData();
+    formData.append('trim_start', String(params.trimStart ?? 0));
+    if (params.trimEnd !== undefined) {
+      formData.append('trim_end', String(params.trimEnd));
+    }
+    formData.append('speed', String(params.speed ?? 1));
+    formData.append('save_mode', params.saveMode);
+    if (params.outputFilename) {
+      formData.append('output_filename', params.outputFilename);
+    }
+    if (audioFile) {
+      formData.append('audio', audioFile);
+    }
+    const response = await fetch(`${API_BASE}/archives/${archiveId}/timelapse/process`, {
       method: 'POST',
       body: formData,
     });
