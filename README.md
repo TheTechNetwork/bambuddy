@@ -52,9 +52,11 @@
 - Re-print to any connected printer with AMS filament preview
 - Archive comparison (side-by-side diff)
 
-### 📊 Monitoring & Stats
+### 📊 Monitoring & Control
 - Real-time printer status via WebSocket
 - Live camera streaming (MJPEG) & snapshots
+- Printer control (stop, pause, resume)
+- AMS slot RFID re-read
 - HMS error monitoring with history
 - Print success rates & trends
 - Filament usage tracking

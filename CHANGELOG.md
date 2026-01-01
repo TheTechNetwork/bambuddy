@@ -2,6 +2,28 @@
 
 All notable changes to Bambuddy will be documented in this file.
 
+## [0.1.6b5] - 2026-01-01
+
+### Added
+- **Printer control buttons** - Stop and Pause/Resume buttons on printer cards when printing:
+  - Stop button cancels the current print job
+  - Pause/Resume toggle for pausing and resuming prints
+  - Confirmation modals for all actions to prevent accidental clicks
+  - Toast notifications for action feedback
+- **AMS slot RFID re-read** - Re-read RFID data for individual AMS slots:
+  - Menu button (⋮) appears on hover over AMS slots
+  - "Re-read RFID" option triggers filament info refresh
+  - Loading indicator shows while re-read is in progress
+  - Automatically tracks printer status to clear indicator when complete
+  - Menu hidden when printer is busy (printing)
+
+### Changed
+- **Temperature cards layout** - Refactored printer card layout with slimmer temperature displays to make room for control buttons
+
+### Tests
+- Added integration tests for printer control endpoints (stop, pause, resume)
+- Added integration tests for AMS slot refresh endpoint
+
 ## [0.1.6b4] - 2026-01-01
 
 ### Added

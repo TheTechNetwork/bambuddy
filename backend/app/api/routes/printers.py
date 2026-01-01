@@ -1011,3 +1011,94 @@ async def debug_simulate_print_complete(
     await on_print_complete(printer_id, data)
 
     return {"success": True, "archive_id": archive.id, "message": "Print completion simulated"}
+
+
+# =============================================================================
+# Print Control Endpoints
+# =============================================================================
+
+
+@router.post("/{printer_id}/print/stop")
+async def stop_print(printer_id: int, db: AsyncSession = Depends(get_db)):
+    """Stop/cancel the current print job."""
+    result = await db.execute(select(Printer).where(Printer.id == printer_id))
+    printer = result.scalar_one_or_none()
+    if not printer:
+        raise HTTPException(404, "Printer not found")
+
+    client = printer_manager.get_client(printer_id)
+    if not client:
+        raise HTTPException(400, "Printer not connected")
+
+    success = client.stop_print()
+    if not success:
+        raise HTTPException(500, "Failed to stop print")
+
+    return {"success": True, "message": "Print stop command sent"}
+
+
+@router.post("/{printer_id}/print/pause")
+async def pause_print(printer_id: int, db: AsyncSession = Depends(get_db)):
+    """Pause the current print job."""
+    result = await db.execute(select(Printer).where(Printer.id == printer_id))
+    printer = result.scalar_one_or_none()
+    if not printer:
+        raise HTTPException(404, "Printer not found")
+
+    client = printer_manager.get_client(printer_id)
+    if not client:
+        raise HTTPException(400, "Printer not connected")
+
+    success = client.pause_print()
+    if not success:
+        raise HTTPException(500, "Failed to pause print")
+
+    return {"success": True, "message": "Print pause command sent"}
+
+
+@router.post("/{printer_id}/print/resume")
+async def resume_print(printer_id: int, db: AsyncSession = Depends(get_db)):
+    """Resume a paused print job."""
+    result = await db.execute(select(Printer).where(Printer.id == printer_id))
+    printer = result.scalar_one_or_none()
+    if not printer:
+        raise HTTPException(404, "Printer not found")
+
+    client = printer_manager.get_client(printer_id)
+    if not client:
+        raise HTTPException(400, "Printer not connected")
+
+    success = client.resume_print()
+    if not success:
+        raise HTTPException(500, "Failed to resume print")
+
+    return {"success": True, "message": "Print resume command sent"}
+
+
+# =============================================================================
+# AMS Control Endpoints
+# =============================================================================
+
+
+@router.post("/{printer_id}/ams/{ams_id}/slot/{slot_id}/refresh")
+async def refresh_ams_slot(
+    printer_id: int,
+    ams_id: int,
+    slot_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Re-read RFID for an AMS slot (triggers filament info refresh)."""
+    result = await db.execute(select(Printer).where(Printer.id == printer_id))
+    printer = result.scalar_one_or_none()
+    if not printer:
+        raise HTTPException(404, "Printer not found")
+
+    client = printer_manager.get_client(printer_id)
+    if not client:
+        raise HTTPException(400, "Printer not connected")
+
+    success, message = client.ams_refresh_tray(ams_id, slot_id)
+    if not success:
+        raise HTTPException(400, message)
+
+    return {"success": True, "message": message}
