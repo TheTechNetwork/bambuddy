@@ -1512,6 +1512,7 @@ export const api = {
   getArchiveThumbnail: (id: number) => `${API_BASE}/archives/${id}/thumbnail?v=${Date.now()}`,
   getArchiveDownload: (id: number) => `${API_BASE}/archives/${id}/download`,
   getArchiveGcode: (id: number) => `${API_BASE}/archives/${id}/gcode`,
+  getArchivePlatePreview: (id: number) => `${API_BASE}/archives/${id}/plate-preview`,
   getArchiveTimelapse: (id: number) => `${API_BASE}/archives/${id}/timelapse?v=${Date.now()}`,
   scanArchiveTimelapse: (id: number) =>
     request<{
@@ -1640,6 +1641,7 @@ export const api = {
     request<{
       has_model: boolean;
       has_gcode: boolean;
+      has_source: boolean;
       build_volume: { x: number; y: number; z: number };
       filament_colors: string[];
     }>(`/archives/${id}/capabilities`),
