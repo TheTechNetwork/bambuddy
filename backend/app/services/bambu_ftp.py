@@ -2,6 +2,7 @@ import asyncio
 import logging
 import socket
 import ssl
+from collections.abc import Callable
 from ftplib import FTP, FTP_TLS
 from io import BytesIO
 from pathlib import Path
@@ -183,8 +184,13 @@ class BambuFTPClient:
                     pass
             return False
 
-    def upload_file(self, local_path: Path, remote_path: str) -> bool:
-        """Upload a file to the printer."""
+    def upload_file(
+        self,
+        local_path: Path,
+        remote_path: str,
+        progress_callback: Callable[[int, int], None] | None = None,
+    ) -> bool:
+        """Upload a file to the printer with optional progress callback."""
         if not self._ftp:
             logger.warning("upload_file: FTP not connected")
             return False
@@ -192,8 +198,17 @@ class BambuFTPClient:
         try:
             file_size = local_path.stat().st_size if local_path.exists() else 0
             logger.info(f"FTP uploading {local_path} ({file_size} bytes) to {remote_path}")
+
+            uploaded = 0
+
+            def on_block(block: bytes):
+                nonlocal uploaded
+                uploaded += len(block)
+                if progress_callback:
+                    progress_callback(uploaded, file_size)
+
             with open(local_path, "rb") as f:
-                self._ftp.storbinary(f"STOR {remote_path}", f)
+                self._ftp.storbinary(f"STOR {remote_path}", f, callback=on_block)
             logger.info(f"FTP upload complete: {remote_path}")
             return True
         except Exception as e:
@@ -340,8 +355,10 @@ async def upload_file_async(
     access_code: str,
     local_path: Path,
     remote_path: str,
+    timeout: float = 600.0,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> bool:
-    """Async wrapper for uploading a file."""
+    """Async wrapper for uploading a file with timeout and progress callback."""
     loop = asyncio.get_event_loop()
 
     def _upload():
@@ -350,13 +367,17 @@ async def upload_file_async(
         if client.connect():
             logger.info(f"FTP connected to {ip_address}")
             try:
-                return client.upload_file(local_path, remote_path)
+                return client.upload_file(local_path, remote_path, progress_callback)
             finally:
                 client.disconnect()
         logger.warning(f"FTP connection failed to {ip_address}")
         return False
 
-    return await loop.run_in_executor(None, _upload)
+    try:
+        return await asyncio.wait_for(loop.run_in_executor(None, _upload), timeout=timeout)
+    except TimeoutError:
+        logger.warning(f"FTP upload timed out after {timeout}s for {remote_path}")
+        return False
 
 
 async def list_files_async(

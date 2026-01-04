@@ -158,6 +158,8 @@ class PrinterState:
     big_fan1_speed: int | None = None  # Auxiliary fan
     big_fan2_speed: int | None = None  # Chamber/exhaust fan
     heatbreak_fan_speed: int | None = None  # Hotend heatbreak fan
+    # Firmware version info (from info.module[name="ota"].sw_ver)
+    firmware_version: str | None = None
 
 
 # Stage name mapping from BambuStudio DeviceManager.cpp
@@ -323,6 +325,8 @@ class BambuMQTTClient:
             client.subscribe(self.topic_subscribe)
             # Request full status update (includes nozzle info in push_status response)
             self._request_push_all()
+            # Request firmware version info
+            self._request_version()
             # Note: get_accessories returns stale nozzle data on H2D, so we don't use it.
             # The correct nozzle data comes from push_status.
             # Prime K-profile request (Bambu printers often ignore first request)
@@ -396,6 +400,12 @@ class BambuMQTTClient:
             system_data = payload["system"]
             logger.info(f"[{self.serial_number}] Received system data: {system_data}")
             self._handle_system_response(system_data)
+
+        # Handle info responses (firmware version info from get_version command)
+        if "info" in payload:
+            info_data = payload["info"]
+            if isinstance(info_data, dict) and info_data.get("command") == "get_version":
+                self._handle_version_info(info_data)
 
         # Parse WiFi signal at top level (some printers send it here)
         if "wifi_signal" in payload:
@@ -486,6 +496,39 @@ class BambuMQTTClient:
             # because it returns stale values (e.g., 'stainless_steel' when the
             # actual nozzle is 'HH01' hardened steel high-flow)
             logger.info(f"[{self.serial_number}] Accessories response (not used for nozzle data): {data}")
+
+    def _handle_version_info(self, data: dict):
+        """Handle version info response from get_version command.
+
+        Parses firmware version from the 'ota' module in the module list.
+        Message format:
+        {
+            "command": "get_version",
+            "module": [
+                {"name": "ota", "sw_ver": "01.08.05.00"},
+                {"name": "rv1126", "sw_ver": "00.00.14.74"},
+                ...
+            ]
+        }
+        """
+        modules = data.get("module", [])
+        if not isinstance(modules, list):
+            return
+
+        for module in modules:
+            if not isinstance(module, dict):
+                continue
+            if module.get("name") == "ota":
+                version = module.get("sw_ver")
+                if version:
+                    old_version = self.state.firmware_version
+                    self.state.firmware_version = version
+                    if old_version != version:
+                        logger.info(f"[{self.serial_number}] Firmware version: {version}")
+                    # Trigger state change callback
+                    if self.on_state_change:
+                        self.on_state_change(self.state)
+                break
 
     def _parse_xcam_data(self, xcam_data):
         """Parse xcam data for camera settings and AI detection options."""
@@ -1764,6 +1807,19 @@ class BambuMQTTClient:
         """Request full status update from printer."""
         if self._client:
             message = {"pushing": {"command": "pushall"}}
+            self._client.publish(self.topic_publish, json.dumps(message), qos=1)
+
+    def _request_version(self):
+        """Request firmware version info from printer."""
+        if self._client:
+            self._sequence_id += 1
+            message = {
+                "info": {
+                    "sequence_id": str(self._sequence_id),
+                    "command": "get_version",
+                }
+            }
+            logger.debug(f"[{self.serial_number}] Requesting firmware version info")
             self._client.publish(self.topic_publish, json.dumps(message), qos=1)
 
     def request_status_update(self) -> bool:

@@ -2,6 +2,19 @@
 
 All notable changes to Bambuddy will be documented in this file.
 
+## [0.1.6b7] - 2026-01-04
+
+### Added
+- **Firmware update helper** - Check and upload firmware updates for LAN-only printers:
+  - Automatic firmware update checking against Bambu Lab's servers
+  - Orange "Update" badge on printer cards when updates are available
+  - Click badge to open firmware update modal with version info and release notes
+  - One-click firmware upload to printer's SD card via FTP
+  - Real-time upload progress tracking with actual bytes transferred
+  - Step-by-step instructions for triggering update from printer screen
+  - Supports all Bambu Lab printer models (X1C, X1, X1E, P1S, P1P, P2S, A1, A1 Mini, H2D, H2C, H2S)
+  - Firmware files cached locally for faster re-uploads
+
 ## [0.1.6b6] - 2026-01-04
 
 ### Added

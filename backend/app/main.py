@@ -59,6 +59,7 @@ from backend.app.api.routes import (
     discovery,
     external_links,
     filaments,
+    firmware,
     kprofiles,
     maintenance,
     notification_templates,
@@ -1814,6 +1815,7 @@ app.include_router(system.router, prefix=app_settings.api_prefix)
 app.include_router(websocket.router, prefix=app_settings.api_prefix)
 app.include_router(discovery.router, prefix=app_settings.api_prefix)
 app.include_router(pending_uploads.router, prefix=app_settings.api_prefix)
+app.include_router(firmware.router, prefix=app_settings.api_prefix)
 
 
 # Serve static files (React build)

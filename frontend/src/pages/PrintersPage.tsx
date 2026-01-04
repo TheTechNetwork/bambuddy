@@ -38,6 +38,7 @@ import {
   Wind,
   AirVent,
   Minus,
+  Download,
 } from 'lucide-react';
 
 // Custom Skip Objects icon - arrow jumping over boxes
@@ -53,8 +54,8 @@ const SkipObjectsIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 import { useNavigate } from 'react-router-dom';
-import { api, discoveryApi } from '../api/client';
-import type { Printer, PrinterCreate, AMSUnit, DiscoveredPrinter } from '../api/client';
+import { api, discoveryApi, firmwareApi } from '../api/client';
+import type { Printer, PrinterCreate, AMSUnit, DiscoveredPrinter, FirmwareUpdateInfo, FirmwareUploadStatus } from '../api/client';
 import { Card, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -903,11 +904,20 @@ function PrinterCard({
     trayUuid: string;
     trayInfo: { type: string; color: string; location: string };
   } | null>(null);
+  const [showFirmwareModal, setShowFirmwareModal] = useState(false);
 
   const { data: status } = useQuery({
     queryKey: ['printerStatus', printer.id],
     queryFn: () => api.getPrinterStatus(printer.id),
     refetchInterval: 30000, // Fallback polling, WebSocket handles real-time
+  });
+
+  // Check for firmware updates (cached for 5 minutes)
+  const { data: firmwareInfo } = useQuery({
+    queryKey: ['firmwareUpdate', printer.id],
+    queryFn: () => firmwareApi.checkPrinterUpdate(printer.id),
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
   });
 
   // Collect unique tray_info_idx values for cloud filament info lookup
@@ -1389,6 +1399,17 @@ function PrinterCard({
                 >
                   <Layers className="w-3 h-3" />
                   {queueCount}
+                </button>
+              )}
+              {/* Firmware Update Badge */}
+              {firmwareInfo?.update_available && (
+                <button
+                  onClick={() => setShowFirmwareModal(true)}
+                  className="flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-orange-500/20 text-orange-400 hover:opacity-80 transition-opacity"
+                  title={`Firmware update available: ${firmwareInfo.current_version} → ${firmwareInfo.latest_version}`}
+                >
+                  <Download className="w-3 h-3" />
+                  Update
                 </button>
               )}
             </div>
@@ -2697,6 +2718,15 @@ function PrinterCard({
         />
       )}
 
+      {/* Firmware Update Modal */}
+      {showFirmwareModal && firmwareInfo && (
+        <FirmwareUpdateModal
+          printer={printer}
+          firmwareInfo={firmwareInfo}
+          onClose={() => setShowFirmwareModal(false)}
+        />
+      )}
+
       {/* AMS Slot Menu Backdrop - closes menu when clicking outside */}
       {amsSlotMenu && (
         <div
@@ -3081,6 +3111,206 @@ function AddPrinterModal({
               </Button>
             </div>
           </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function FirmwareUpdateModal({
+  printer,
+  firmwareInfo,
+  onClose,
+}: {
+  printer: Printer;
+  firmwareInfo: FirmwareUpdateInfo;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const { showToast } = useToast();
+  const [uploadStatus, setUploadStatus] = useState<FirmwareUploadStatus | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [pollInterval, setPollInterval] = useState<NodeJS.Timeout | null>(null);
+
+  // Prepare check query
+  const { data: prepareInfo, isLoading: isPreparing } = useQuery({
+    queryKey: ['firmwarePrepare', printer.id],
+    queryFn: () => firmwareApi.prepareUpload(printer.id),
+    staleTime: 30000,
+  });
+
+  // Start upload mutation
+  const uploadMutation = useMutation({
+    mutationFn: () => firmwareApi.startUpload(printer.id),
+    onSuccess: () => {
+      setIsUploading(true);
+      // Start polling for status
+      const interval = setInterval(async () => {
+        try {
+          const status = await firmwareApi.getUploadStatus(printer.id);
+          setUploadStatus(status);
+          if (status.status === 'complete' || status.status === 'error') {
+            clearInterval(interval);
+            setPollInterval(null);
+            setIsUploading(false);
+            if (status.status === 'complete') {
+              showToast('Firmware uploaded! Trigger update from printer screen.', 'success');
+              queryClient.invalidateQueries({ queryKey: ['firmwareUpdate', printer.id] });
+            }
+          }
+        } catch {
+          // Ignore errors during polling
+        }
+      }, 2000);
+      setPollInterval(interval);
+    },
+    onError: (error: Error) => {
+      showToast(`Failed to start upload: ${error.message}`, 'error');
+      setIsUploading(false);
+    },
+  });
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (pollInterval) clearInterval(pollInterval);
+    };
+  }, [pollInterval]);
+
+  const handleStartUpload = () => {
+    setUploadStatus(null);
+    uploadMutation.mutate();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <Card className="w-full max-w-md mx-4">
+        <CardContent>
+          <div className="flex items-start gap-3 mb-4">
+            <div className="p-2 rounded-full bg-orange-500/20">
+              <Download className="w-5 h-5 text-orange-400" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-white">Firmware Update</h3>
+              <p className="text-sm text-bambu-gray mt-1">
+                {printer.name}
+              </p>
+            </div>
+          </div>
+
+          {/* Version Info */}
+          <div className="bg-bambu-dark rounded-lg p-3 mb-4">
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-bambu-gray">Current:</span>
+              <span className="text-white font-mono">{firmwareInfo.current_version || 'Unknown'}</span>
+            </div>
+            <div className="flex justify-between items-center text-sm mt-1">
+              <span className="text-bambu-gray">Latest:</span>
+              <span className="text-orange-400 font-mono">{firmwareInfo.latest_version}</span>
+            </div>
+            {firmwareInfo.release_notes && (
+              <details className="mt-3 text-sm">
+                <summary className="text-orange-400 cursor-pointer hover:underline">
+                  Release Notes
+                </summary>
+                <div className="mt-2 text-bambu-gray text-xs max-h-40 overflow-y-auto whitespace-pre-wrap">
+                  {firmwareInfo.release_notes}
+                </div>
+              </details>
+            )}
+          </div>
+
+          {/* Status / Progress */}
+          {isPreparing ? (
+            <div className="flex items-center gap-2 text-bambu-gray text-sm mb-4">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Checking prerequisites...
+            </div>
+          ) : prepareInfo && !isUploading && !uploadStatus ? (
+            <div className="mb-4">
+              {prepareInfo.can_proceed ? (
+                <div className="flex items-center gap-2 text-bambu-green text-sm">
+                  <Box className="w-4 h-4" />
+                  SD card ready. Click below to upload firmware.
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {prepareInfo.errors.map((error, i) => (
+                    <div key={i} className="flex items-center gap-2 text-red-400 text-sm">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                      {error}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          {/* Upload Progress */}
+          {(isUploading || uploadStatus) && uploadStatus && (
+            <div className="mb-4">
+              <div className="flex items-center justify-between text-sm mb-1">
+                <span className="text-bambu-gray capitalize">{uploadStatus.status}</span>
+                <span className="text-white">{uploadStatus.progress}%</span>
+              </div>
+              <div className="w-full bg-bambu-dark-tertiary rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full transition-all ${
+                    uploadStatus.status === 'error' ? 'bg-red-500' :
+                    uploadStatus.status === 'complete' ? 'bg-bambu-green' : 'bg-orange-500'
+                  } ${uploadStatus.status === 'uploading' ? 'animate-pulse' : ''}`}
+                  style={{ width: `${uploadStatus.progress}%` }}
+                />
+              </div>
+              <p className="text-xs text-bambu-gray mt-1">{uploadStatus.message}</p>
+              {uploadStatus.error && (
+                <p className="text-xs text-red-400 mt-1">{uploadStatus.error}</p>
+              )}
+            </div>
+          )}
+
+          {/* Success Message */}
+          {uploadStatus?.status === 'complete' && (
+            <div className="bg-bambu-green/10 border border-bambu-green/30 rounded-lg p-3 mb-4">
+              <p className="text-sm text-bambu-green font-medium mb-2">
+                Firmware uploaded to SD card!
+              </p>
+              <p className="text-xs text-bambu-gray">
+                To apply the update on your printer:
+              </p>
+              <ol className="text-xs text-bambu-gray mt-1 list-decimal list-inside space-y-1">
+                <li>On the printer's touchscreen, go to <strong className="text-white">Settings</strong></li>
+                <li>Navigate to <strong className="text-white">Firmware</strong></li>
+                <li>Select <strong className="text-white">Update from SD card</strong></li>
+                <li>The update will take 10-20 minutes</li>
+              </ol>
+            </div>
+          )}
+
+          {/* Buttons */}
+          <div className="flex gap-2 justify-end">
+            <Button variant="secondary" onClick={onClose}>
+              {uploadStatus?.status === 'complete' ? 'Done' : 'Cancel'}
+            </Button>
+            {prepareInfo?.can_proceed && !isUploading && uploadStatus?.status !== 'complete' && (
+              <Button
+                onClick={handleStartUpload}
+                disabled={uploadMutation.isPending}
+              >
+                {uploadMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    Starting...
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4 mr-2" />
+                    Upload Firmware
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>

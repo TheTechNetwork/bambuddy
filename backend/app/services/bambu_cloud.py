@@ -378,6 +378,36 @@ class BambuCloudService:
         except httpx.RequestError as e:
             raise BambuCloudError(f"Request failed: {e}")
 
+    async def get_firmware_version(self, device_id: str) -> dict:
+        """
+        Get firmware version info for a device.
+
+        Returns dict with:
+        - current_version: Installed firmware version
+        - latest_version: Latest available firmware version
+        - update_available: Boolean indicating if update is available
+        - release_notes: Release notes for latest version
+        """
+        if not self.is_authenticated:
+            raise BambuCloudAuthError("Not authenticated")
+
+        try:
+            response = await self._client.get(
+                f"{self.base_url}/v1/iot-service/api/user/device/version",
+                headers=self._get_headers(),
+                params={"device_id": device_id},
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                # API wraps response in 'data' field
+                return data.get("data", data)
+
+            raise BambuCloudError(f"Failed to get firmware version: {response.status_code}")
+
+        except httpx.RequestError as e:
+            raise BambuCloudError(f"Request failed: {e}")
+
     async def close(self):
         """Close the HTTP client."""
         await self._client.aclose()

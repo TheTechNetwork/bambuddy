@@ -22,6 +22,8 @@ from backend.app.schemas.cloud import (
     CloudLoginResponse,
     CloudTokenRequest,
     CloudVerifyRequest,
+    FirmwareUpdateInfo,
+    FirmwareUpdatesResponse,
     SlicerSetting,
     SlicerSettingCreate,
     SlicerSettingDeleteResponse,
@@ -364,6 +366,82 @@ async def get_devices(db: AsyncSession = Depends(get_db)):
             )
             for d in devices
         ]
+    except BambuCloudAuthError:
+        await clear_token(db)
+        raise HTTPException(status_code=401, detail="Authentication expired")
+    except BambuCloudError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/firmware-updates", response_model=FirmwareUpdatesResponse)
+async def get_firmware_updates(db: AsyncSession = Depends(get_db)):
+    """
+    Check for firmware updates for all bound devices.
+
+    Returns firmware version info for each device including:
+    - Current installed version
+    - Latest available version
+    - Whether an update is available
+    - Release notes for the latest version
+
+    Requires cloud authentication.
+    """
+    token, _ = await get_stored_token(db)
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    cloud = get_cloud_service()
+    cloud.set_token(token)
+
+    if not cloud.is_authenticated:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    try:
+        # First get list of bound devices
+        devices_data = await cloud.get_devices()
+        devices = devices_data.get("devices", [])
+
+        updates = []
+        updates_available = 0
+
+        # Check firmware for each device
+        for device in devices:
+            device_id = device.get("dev_id", "")
+            device_name = device.get("name", "Unknown")
+
+            try:
+                firmware_info = await cloud.get_firmware_version(device_id)
+                update_available = firmware_info.get("update_available", False)
+
+                if update_available:
+                    updates_available += 1
+
+                updates.append(
+                    FirmwareUpdateInfo(
+                        device_id=device_id,
+                        device_name=device_name,
+                        current_version=firmware_info.get("current_version"),
+                        latest_version=firmware_info.get("latest_version"),
+                        update_available=update_available,
+                        release_notes=firmware_info.get("release_notes"),
+                    )
+                )
+            except BambuCloudError as e:
+                logger.warning(f"Failed to get firmware info for {device_name}: {e}")
+                # Still include device but with unknown firmware status
+                updates.append(
+                    FirmwareUpdateInfo(
+                        device_id=device_id,
+                        device_name=device_name,
+                        current_version=None,
+                        latest_version=None,
+                        update_available=False,
+                        release_notes=None,
+                    )
+                )
+
+        return FirmwareUpdatesResponse(updates=updates, updates_available=updates_available)
+
     except BambuCloudAuthError:
         await clear_token(db)
         raise HTTPException(status_code=401, detail="Authentication expired")

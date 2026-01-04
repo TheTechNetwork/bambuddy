@@ -106,3 +106,21 @@ class SlicerSettingDeleteResponse(BaseModel):
 
     success: bool
     message: str
+
+
+class FirmwareUpdateInfo(BaseModel):
+    """Firmware update information for a device."""
+
+    device_id: str = Field(..., description="Device ID")
+    device_name: str = Field(..., description="Device name")
+    current_version: str | None = Field(None, description="Currently installed firmware version")
+    latest_version: str | None = Field(None, description="Latest available firmware version")
+    update_available: bool = Field(False, description="Whether an update is available")
+    release_notes: str | None = Field(None, description="Release notes for the latest version")
+
+
+class FirmwareUpdatesResponse(BaseModel):
+    """Response containing firmware updates for all devices."""
+
+    updates: list[FirmwareUpdateInfo] = Field(default_factory=list)
+    updates_available: int = Field(0, description="Total number of devices with updates available")

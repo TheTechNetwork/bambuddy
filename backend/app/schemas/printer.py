@@ -158,3 +158,5 @@ class PrinterStatus(BaseModel):
     big_fan1_speed: int | None = None  # Auxiliary fan
     big_fan2_speed: int | None = None  # Chamber/exhaust fan
     heatbreak_fan_speed: int | None = None  # Hotend heatbreak fan
+    # Firmware version (from info.module[name="ota"].sw_ver)
+    firmware_version: str | None = None

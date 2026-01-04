@@ -362,6 +362,11 @@ async def get_printer_status(printer_id: int, db: AsyncSession = Depends(get_db)
         mc_print_sub_stage=state.mc_print_sub_stage,
         last_ams_update=state.last_ams_update,
         printable_objects_count=len(state.printable_objects),
+        cooling_fan_speed=state.cooling_fan_speed,
+        big_fan1_speed=state.big_fan1_speed,
+        big_fan2_speed=state.big_fan2_speed,
+        heatbreak_fan_speed=state.heatbreak_fan_speed,
+        firmware_version=state.firmware_version,
     )
 
 

@@ -32,6 +32,9 @@ npm-debug.log*
 # Archive files (user data)
 archive/
 
+# Firmware cache (downloaded firmware files)
+firmware/
+
 # Virtual printer (auto-generated certs and uploads)
 virtual_printer/
 

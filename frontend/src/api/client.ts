@@ -2526,3 +2526,57 @@ export const pendingUploadsApi = {
   discardAll: () =>
     request<{ discarded: number }>('/pending-uploads/discard-all', { method: 'DELETE' }),
 };
+
+// Firmware API Types
+export interface FirmwareUpdateInfo {
+  printer_id: number;
+  printer_name: string;
+  model: string | null;
+  current_version: string | null;
+  latest_version: string | null;
+  update_available: boolean;
+  download_url: string | null;
+  release_notes: string | null;
+}
+
+export interface FirmwareUploadPrepare {
+  can_proceed: boolean;
+  sd_card_present: boolean;
+  sd_card_free_space: number;
+  firmware_size: number;
+  space_sufficient: boolean;
+  update_available: boolean;
+  current_version: string | null;
+  latest_version: string | null;
+  firmware_filename: string | null;
+  errors: string[];
+}
+
+export interface FirmwareUploadStatus {
+  status: 'idle' | 'preparing' | 'downloading' | 'uploading' | 'complete' | 'error';
+  progress: number;
+  message: string;
+  error: string | null;
+  firmware_filename: string | null;
+  firmware_version: string | null;
+}
+
+// Firmware API
+export const firmwareApi = {
+  checkUpdates: () =>
+    request<{ updates: FirmwareUpdateInfo[]; updates_available: number }>('/firmware/updates'),
+
+  checkPrinterUpdate: (printerId: number) =>
+    request<FirmwareUpdateInfo>(`/firmware/updates/${printerId}`),
+
+  prepareUpload: (printerId: number) =>
+    request<FirmwareUploadPrepare>(`/firmware/updates/${printerId}/prepare`),
+
+  startUpload: (printerId: number) =>
+    request<{ started: boolean; message: string }>(`/firmware/updates/${printerId}/upload`, {
+      method: 'POST',
+    }),
+
+  getUploadStatus: (printerId: number) =>
+    request<FirmwareUploadStatus>(`/firmware/updates/${printerId}/upload/status`),
+};

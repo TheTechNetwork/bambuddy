@@ -113,6 +113,7 @@
 - Interval reminders (hours/days)
 - Print time accuracy stats
 - File manager for printer storage
+- Firmware update helper (LAN-only printers)
 
 </td>
 </tr>
