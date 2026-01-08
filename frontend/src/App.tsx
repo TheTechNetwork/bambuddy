@@ -36,28 +36,27 @@ function App() {
     <ThemeProvider>
       <ToastProvider>
         <QueryClientProvider client={queryClient}>
-          <WebSocketProvider>
-            <BrowserRouter>
-              <Routes>
-                {/* Camera page - standalone, no layout */}
-                <Route path="/camera/:printerId" element={<CameraPage />} />
+          <BrowserRouter>
+            <Routes>
+              {/* Camera page - standalone, no layout, no WebSocket (doesn't need real-time updates) */}
+              <Route path="/camera/:printerId" element={<CameraPage />} />
 
-                <Route path="/" element={<Layout />}>
-                  <Route index element={<PrintersPage />} />
-                  <Route path="archives" element={<ArchivesPage />} />
-                  <Route path="queue" element={<QueuePage />} />
-                  <Route path="stats" element={<StatsPage />} />
-                  <Route path="profiles" element={<ProfilesPage />} />
-                  <Route path="maintenance" element={<MaintenancePage />} />
-                  <Route path="projects" element={<ProjectsPage />} />
-                  <Route path="projects/:id" element={<ProjectDetailPage />} />
-                  <Route path="settings" element={<SettingsPage />} />
-                  <Route path="system" element={<SystemInfoPage />} />
-                  <Route path="external/:id" element={<ExternalLinkPage />} />
-                </Route>
-              </Routes>
-            </BrowserRouter>
-          </WebSocketProvider>
+              {/* Main app with WebSocket for real-time updates */}
+              <Route element={<WebSocketProvider><Layout /></WebSocketProvider>}>
+                <Route index element={<PrintersPage />} />
+                <Route path="archives" element={<ArchivesPage />} />
+                <Route path="queue" element={<QueuePage />} />
+                <Route path="stats" element={<StatsPage />} />
+                <Route path="profiles" element={<ProfilesPage />} />
+                <Route path="maintenance" element={<MaintenancePage />} />
+                <Route path="projects" element={<ProjectsPage />} />
+                <Route path="projects/:id" element={<ProjectDetailPage />} />
+                <Route path="settings" element={<SettingsPage />} />
+                <Route path="system" element={<SystemInfoPage />} />
+                <Route path="external/:id" element={<ExternalLinkPage />} />
+              </Route>
+            </Routes>
+          </BrowserRouter>
         </QueryClientProvider>
       </ToastProvider>
     </ThemeProvider>

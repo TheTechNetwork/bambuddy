@@ -197,8 +197,9 @@ export function CameraPage() {
 
   // Stall detection - periodically check if stream is still receiving frames
   useEffect(() => {
-    if (streamMode !== 'stream' || streamLoading || streamError || isReconnecting || transitioning) {
-      // Clear stall check when not actively streaming
+    // Only skip stall check during initial load, reconnecting, or transitioning
+    // Continue checking even during streamError to detect recovery
+    if (streamMode !== 'stream' || streamLoading || isReconnecting || transitioning) {
       if (stallCheckIntervalRef.current) {
         clearInterval(stallCheckIntervalRef.current);
         stallCheckIntervalRef.current = null;
@@ -212,14 +213,15 @@ export function CameraPage() {
         const response = await fetch(`/api/v1/printers/${id}/camera/status`);
         if (response.ok) {
           const status = await response.json();
-          if (status.stalled) {
-            console.log('Stream stall detected, auto-reconnecting...');
-            // Trigger reconnect
+          // Trigger reconnect if:
+          // 1. Backend reports stall (no frames for 10+ seconds)
+          // 2. OR stream is not active anymore (process died)
+          if (status.stalled || (!status.active && !streamError)) {
+            console.log(`Stream issue detected: stalled=${status.stalled}, active=${status.active}, reconnecting...`);
             if (stallCheckIntervalRef.current) {
               clearInterval(stallCheckIntervalRef.current);
               stallCheckIntervalRef.current = null;
             }
-            // Use the same reconnect logic as stream error
             setStreamLoading(false);
             attemptReconnect();
           }
