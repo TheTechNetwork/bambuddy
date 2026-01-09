@@ -169,6 +169,8 @@ async def sync_printer_ams(
     synced = 0
     skipped: list[SkippedSpool] = []
     errors = []
+    # Track tray UUIDs currently in the AMS (for clearing removed spools)
+    current_tray_uuids: set[str] = set()
 
     # Handle different AMS data structures
     # Traditional AMS: list of {"id": N, "tray": [...]} dicts
@@ -222,6 +224,9 @@ async def sync_printer_ams(
                 )
                 continue
 
+            # Track this tray UUID as currently present in the AMS
+            current_tray_uuids.add(tray.tray_uuid.upper())
+
             try:
                 sync_result = await client.sync_ams_tray(tray, printer.name)
                 if sync_result:
@@ -234,6 +239,14 @@ async def sync_printer_ams(
                 error_msg = f"Error syncing AMS {ams_id} tray {tray.tray_id}: {e}"
                 logger.error(error_msg)
                 errors.append(error_msg)
+
+    # Clear location for spools that were removed from this printer's AMS
+    try:
+        cleared = await client.clear_location_for_removed_spools(printer.name, current_tray_uuids)
+        if cleared > 0:
+            logger.info(f"Cleared location for {cleared} spools removed from {printer.name}")
+    except Exception as e:
+        logger.error(f"Error clearing locations for removed spools: {e}")
 
     return SyncResult(
         success=len(errors) == 0,
@@ -269,6 +282,8 @@ async def sync_all_printers(db: AsyncSession = Depends(get_db)):
     total_synced = 0
     all_skipped: list[SkippedSpool] = []
     all_errors = []
+    # Track tray UUIDs per printer (for clearing removed spools)
+    printer_tray_uuids: dict[str, set[str]] = {}
 
     for printer in printers:
         state = printer_manager.get_status(printer.id)
@@ -278,6 +293,9 @@ async def sync_all_printers(db: AsyncSession = Depends(get_db)):
         ams_data = state.raw_data.get("ams")
         if not ams_data:
             continue
+
+        # Initialize tray UUID set for this printer
+        printer_tray_uuids[printer.name] = set()
 
         # Handle different AMS data structures
         # Traditional AMS: list of {"id": N, "tray": [...]} dicts
@@ -330,12 +348,24 @@ async def sync_all_printers(db: AsyncSession = Depends(get_db)):
                     )
                     continue
 
+                # Track this tray UUID as currently present in the AMS
+                printer_tray_uuids[printer.name].add(tray.tray_uuid.upper())
+
                 try:
                     sync_result = await client.sync_ams_tray(tray, printer.name)
                     if sync_result:
                         total_synced += 1
                 except Exception as e:
                     all_errors.append(f"{printer.name} AMS {ams_id}:{tray.tray_id}: {e}")
+
+    # Clear location for spools that were removed from each printer's AMS
+    for printer_name, current_tray_uuids in printer_tray_uuids.items():
+        try:
+            cleared = await client.clear_location_for_removed_spools(printer_name, current_tray_uuids)
+            if cleared > 0:
+                logger.info(f"Cleared location for {cleared} spools removed from {printer_name}")
+        except Exception as e:
+            logger.error(f"Error clearing locations for {printer_name}: {e}")
 
     return SyncResult(
         success=len(all_errors) == 0,

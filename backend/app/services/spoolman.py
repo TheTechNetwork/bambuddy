@@ -327,6 +327,7 @@ class SpoolmanClient:
         spool_id: int,
         remaining_weight: float | None = None,
         location: str | None = None,
+        clear_location: bool = False,
         extra: dict | None = None,
     ) -> dict | None:
         """Update an existing spool in Spoolman.
@@ -334,7 +335,8 @@ class SpoolmanClient:
         Args:
             spool_id: ID of the spool to update
             remaining_weight: New remaining weight in grams
-            location: New location
+            location: New location (ignored if clear_location is True)
+            clear_location: If True, clears the location field
             extra: Extra fields to update
 
         Returns:
@@ -344,7 +346,9 @@ class SpoolmanClient:
             data = {}
             if remaining_weight is not None:
                 data["remaining_weight"] = remaining_weight
-            if location:
+            if clear_location:
+                data["location"] = None
+            elif location:
                 data["location"] = location
             if extra:
                 data["extra"] = extra
@@ -406,6 +410,67 @@ class SpoolmanClient:
                         logger.debug(f"Found spool {spool['id']} matching tag {tag_uid}")
                         return spool
         return None
+
+    async def find_spools_by_location_prefix(self, location_prefix: str) -> list[dict]:
+        """Find all spools with locations starting with a given prefix.
+
+        Args:
+            location_prefix: The location prefix to search for (e.g., "PrinterName - ")
+
+        Returns:
+            List of spool dictionaries with matching locations.
+        """
+        spools = await self.get_spools()
+        matching = []
+        for spool in spools:
+            location = spool.get("location", "")
+            if location and location.startswith(location_prefix):
+                matching.append(spool)
+        return matching
+
+    async def clear_location_for_removed_spools(
+        self,
+        printer_name: str,
+        current_tray_uuids: set[str],
+    ) -> int:
+        """Clear location for spools that are no longer in the AMS.
+
+        When a spool is removed from the AMS, its location should be cleared
+        in Spoolman. This method finds all spools with locations for this printer
+        and clears the location for any that are not in the current_tray_uuids set.
+
+        Args:
+            printer_name: The printer name used as location prefix
+            current_tray_uuids: Set of tray_uuids currently in the AMS
+
+        Returns:
+            Number of spools whose location was cleared.
+        """
+        location_prefix = f"{printer_name} - "
+        spools_at_printer = await self.find_spools_by_location_prefix(location_prefix)
+        cleared_count = 0
+
+        for spool in spools_at_printer:
+            # Get the tray_uuid (stored as "tag" in extra field)
+            extra = spool.get("extra", {}) or {}
+            stored_tag = extra.get("tag", "")
+            if stored_tag:
+                # Normalize: strip quotes and uppercase
+                spool_uuid = stored_tag.strip('"').upper()
+            else:
+                spool_uuid = ""
+
+            # If this spool's UUID is not in the current AMS, clear its location
+            if spool_uuid not in current_tray_uuids:
+                logger.info(
+                    f"Clearing location for spool {spool['id']} "
+                    f"(was: {spool.get('location')}, uuid: {spool_uuid[:16] if spool_uuid else 'none'}...)"
+                )
+                result = await self.update_spool(spool_id=spool["id"], clear_location=True)
+                if result:
+                    cleared_count += 1
+
+        return cleared_count
 
     async def ensure_bambu_vendor(self) -> int | None:
         """Ensure Bambu Lab vendor exists and return its ID.
