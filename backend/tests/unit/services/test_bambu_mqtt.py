@@ -259,9 +259,9 @@ class TestRealisticMessageFlow:
         # Verify timelapse was detected even though xcam is parsed before state
         assert mqtt_client._was_running is True, "_was_running should be True after RUNNING state"
         assert mqtt_client.state.timelapse is True, "state.timelapse should be True"
-        assert (
-            mqtt_client._timelapse_during_print is True
-        ), "timelapse_during_print should be True when timelapse is in the same message as RUNNING state"
+        assert mqtt_client._timelapse_during_print is True, (
+            "timelapse_during_print should be True when timelapse is in the same message as RUNNING state"
+        )
 
     def test_timelapse_not_detected_when_disabled(self, mqtt_client):
         """Test that timelapse is NOT detected when disabled in xcam data."""

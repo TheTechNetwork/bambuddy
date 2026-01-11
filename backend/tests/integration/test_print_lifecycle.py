@@ -133,9 +133,9 @@ class TestTimelapseTracking:
         )
 
         assert client._was_running is True
-        assert (
-            client._timelapse_during_print is True
-        ), "Timelapse should be detected even when xcam is parsed before state"
+        assert client._timelapse_during_print is True, (
+            "Timelapse should be detected even when xcam is parsed before state"
+        )
 
     @pytest.mark.asyncio
     async def test_timelapse_flag_included_in_completion_callback(self):
@@ -330,9 +330,9 @@ class TestTimelapseTracking:
             }
         )
 
-        assert (
-            completion_data["timelapse_was_active"] is True
-        ), "timelapse_was_active should be True when timelapse was in ipcam"
+        assert completion_data["timelapse_was_active"] is True, (
+            "timelapse_was_active should be True when timelapse was in ipcam"
+        )
 
 
 class TestCallbackErrorHandling:
