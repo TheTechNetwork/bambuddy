@@ -43,7 +43,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api/client';
 import { openInSlicer } from '../utils/slicer';
-import { formatDate, formatDateOnly, parseUTCDate } from '../utils/date';
+import { formatDateTime, formatDateOnly, parseUTCDate, type TimeFormat } from '../utils/date';
 import { useIsMobile } from '../hooks/useIsMobile';
 import type { Archive, ProjectListItem } from '../api/client';
 import { Card, CardContent } from '../components/Card';
@@ -89,6 +89,7 @@ function ArchiveCard({
   selectionMode,
   projects,
   isHighlighted,
+  timeFormat = 'system',
 }: {
   archive: Archive;
   printerName: string;
@@ -97,6 +98,7 @@ function ArchiveCard({
   selectionMode: boolean;
   projects: ProjectListItem[] | undefined;
   isHighlighted?: boolean;
+  timeFormat?: TimeFormat;
 }) {
   // Debug: log when card is highlighted
   if (isHighlighted) {
@@ -669,7 +671,7 @@ function ArchiveCard({
 
         {/* Date & Size */}
         <div className="flex items-center justify-between text-xs text-bambu-gray border-t border-bambu-dark-tertiary pt-3">
-          <span>{formatDate(archive.created_at)}</span>
+          <span>{formatDateTime(archive.created_at, timeFormat)}</span>
           <span>{formatFileSize(archive.file_size)}</span>
         </div>
 
@@ -890,7 +892,7 @@ function ArchiveCard({
                     <p className="text-white font-medium truncate">{file.name}</p>
                     <p className="text-sm text-gray-400">
                       {formatFileSize(file.size)}
-                      {file.mtime && ` • ${formatDate(file.mtime)}`}
+                      {file.mtime && ` • ${formatDateTime(file.mtime, timeFormat)}`}
                     </p>
                   </div>
                 </button>
@@ -1721,6 +1723,13 @@ export function ArchivesPage() {
     queryFn: () => api.getProjects(),
   });
 
+  const { data: settings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: api.getSettings,
+  });
+
+  const timeFormat: TimeFormat = settings?.time_format || 'system';
+
   const bulkDeleteMutation = useMutation({
     mutationFn: async (ids: number[]) => {
       await Promise.all(ids.map((id) => api.deleteArchive(id)));
@@ -2449,6 +2458,7 @@ export function ArchivesPage() {
               selectionMode={selectionMode}
               projects={projects}
               isHighlighted={archive.id === highlightedArchiveId}
+              timeFormat={timeFormat}
             />
           ))}
         </div>

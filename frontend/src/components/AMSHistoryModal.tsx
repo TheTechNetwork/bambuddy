@@ -13,7 +13,7 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { api, type AMSHistoryResponse } from '../api/client';
-import { parseUTCDate } from '../utils/date';
+import { parseUTCDate, applyTimeFormat, type TimeFormat } from '../utils/date';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -58,6 +58,13 @@ export function AMSHistoryModal({
   const [mode, setMode] = useState<'humidity' | 'temperature'>(initialMode);
   const isDark = themeMode === 'dark';
 
+  const { data: settings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: api.getSettings,
+  });
+
+  const timeFormat: TimeFormat = settings?.time_format || 'system';
+
   // Close on Escape key
   useEffect(() => {
     if (!isOpen) return;
@@ -82,15 +89,16 @@ export function AMSHistoryModal({
   // Format data for chart
   const chartData = data?.data.map(point => {
     const date = parseUTCDate(point.recorded_at) || new Date();
+    const timeOptions: Intl.DateTimeFormatOptions = {
+      hour: '2-digit',
+      minute: '2-digit',
+      ...(hours > 24 ? { day: 'numeric', month: 'short' } : {}),
+    };
     return {
       time: date.getTime(),
       humidity: point.humidity,
       temperature: point.temperature,
-      timeLabel: date.toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-        ...(hours > 24 ? { day: 'numeric', month: 'short' } : {}),
-      }),
+      timeLabel: date.toLocaleTimeString([], applyTimeFormat(timeOptions, timeFormat)),
     };
   }) || [];
 
@@ -311,7 +319,7 @@ export function AMSHistoryModal({
                       if (hours > 24) {
                         return date.toLocaleDateString([], { day: 'numeric', month: 'short' });
                       }
-                      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                      return date.toLocaleTimeString([], applyTimeFormat({ hour: '2-digit', minute: '2-digit' }, timeFormat));
                     }}
                     stroke={isDark ? '#9ca3af' : '#6b7280'}
                     tick={{ fontSize: 12 }}
@@ -329,7 +337,13 @@ export function AMSHistoryModal({
                       borderRadius: '8px',
                       color: isDark ? '#fff' : '#000',
                     }}
-                    labelFormatter={(ts) => new Date(ts).toLocaleString()}
+                    labelFormatter={(ts) => new Date(ts).toLocaleString(undefined, applyTimeFormat({
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    }, timeFormat))}
                     formatter={(value: number) => [
                       mode === 'humidity' ? `${value}%` : `${value}°C`,
                       mode === 'humidity' ? 'Humidity' : 'Temperature'

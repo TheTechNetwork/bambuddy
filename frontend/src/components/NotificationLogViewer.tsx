@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { History, CheckCircle, XCircle, Loader2, Trash2, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 import { api } from '../api/client';
-import { parseUTCDate, formatDate as formatDateUtil } from '../utils/date';
+import { parseUTCDate, formatTimeOnly, formatDateTime, type TimeFormat } from '../utils/date';
 import type { NotificationLogEntry } from '../api/client';
 import { Button } from './Button';
 import { useToast } from '../contexts/ToastContext';
@@ -44,6 +44,13 @@ export function NotificationLogViewer({ onClose }: NotificationLogViewerProps) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [showFailedOnly, setShowFailedOnly] = useState(false);
 
+  const { data: settings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: api.getSettings,
+  });
+
+  const timeFormat: TimeFormat = settings?.time_format || 'system';
+
   const { data: logs, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['notification-logs', days, showFailedOnly],
     queryFn: () => api.getNotificationLogs({
@@ -80,7 +87,7 @@ export function NotificationLogViewer({ onClose }: NotificationLogViewerProps) {
     if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
 
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleDateString() + ' ' + formatTimeOnly(date, timeFormat);
   };
 
   return (
@@ -191,6 +198,7 @@ export function NotificationLogViewer({ onClose }: NotificationLogViewerProps) {
                   isExpanded={expandedId === log.id}
                   onToggle={() => setExpandedId(expandedId === log.id ? null : log.id)}
                   formatDate={formatDate}
+                  formatFullDate={(dateStr) => formatDateTime(dateStr, timeFormat)}
                 />
               ))}
             </div>
@@ -213,11 +221,13 @@ function LogEntry({
   isExpanded,
   onToggle,
   formatDate,
+  formatFullDate,
 }: {
   log: NotificationLogEntry;
   isExpanded: boolean;
   onToggle: () => void;
   formatDate: (date: string) => string;
+  formatFullDate: (date: string) => string;
 }) {
   return (
     <div
@@ -280,7 +290,7 @@ function LogEntry({
           )}
           <div className="flex gap-4 text-xs text-bambu-gray pt-1">
             <span>Provider: {log.provider_type}</span>
-            <span>Time: {formatDateUtil(log.created_at)}</span>
+            <span>Time: {formatFullDate(log.created_at)}</span>
           </div>
         </div>
       )}

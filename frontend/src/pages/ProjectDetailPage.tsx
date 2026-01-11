@@ -32,7 +32,7 @@ import {
   ShoppingCart,
 } from 'lucide-react';
 import { api } from '../api/client';
-import { parseUTCDate, formatDateOnly, formatDate as formatDateUtil } from '../utils/date';
+import { parseUTCDate, formatDateOnly, formatDateTime, type TimeFormat } from '../utils/date';
 import type { Archive, ProjectUpdate, BOMItem, BOMItemCreate } from '../api/client';
 import { Card, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
@@ -235,6 +235,7 @@ export function ProjectDetailPage() {
   });
 
   const currency = settings?.currency || '$';
+  const timeFormat: TimeFormat = settings?.time_format || 'system';
 
   const updateMutation = useMutation({
     mutationFn: (data: ProjectUpdate) => api.updateProject(projectId, data),
@@ -403,7 +404,7 @@ export function ProjectDetailPage() {
   });
 
   const formatTimelineDate = (timestamp: string) => {
-    return formatDateUtil(timestamp, {
+    return formatDateTime(timestamp, timeFormat, {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',

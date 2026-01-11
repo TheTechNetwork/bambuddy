@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { api, supportApi } from '../api/client';
 import { Card } from '../components/Card';
+import { formatDateTime, type TimeFormat } from '../utils/date';
 
 function StatCard({
   icon: Icon,
@@ -101,6 +102,13 @@ export function SystemInfoPage() {
     staleTime: 10 * 1000, // 10 seconds
     refetchInterval: 10 * 1000,
   });
+
+  const { data: settings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: api.getSettings,
+  });
+
+  const timeFormat: TimeFormat = settings?.time_format || 'system';
 
   const handleToggleDebugLogging = async () => {
     setDebugToggling(true);
@@ -525,7 +533,7 @@ export function SystemInfoPage() {
           <StatCard
             icon={Clock}
             label={t('system.bootTime', 'Boot Time')}
-            value={new Date(systemInfo.system.boot_time).toLocaleString()}
+            value={formatDateTime(systemInfo.system.boot_time, timeFormat)}
           />
         </div>
       </Section>

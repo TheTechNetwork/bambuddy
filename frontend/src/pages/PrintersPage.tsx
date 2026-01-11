@@ -644,7 +644,7 @@ function formatTime(seconds: number): string {
   return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
 }
 
-function formatETA(remainingMinutes: number): string {
+function formatETA(remainingMinutes: number, timeFormat: 'system' | '12h' | '24h' = 'system'): string {
   const now = new Date();
   const eta = new Date(now.getTime() + remainingMinutes * 60 * 1000);
   const today = new Date();
@@ -652,7 +652,16 @@ function formatETA(remainingMinutes: number): string {
   const etaDay = new Date(eta);
   etaDay.setHours(0, 0, 0, 0);
 
-  const timeStr = eta.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  // Build time format options based on setting
+  const timeOptions: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' };
+  if (timeFormat === '12h') {
+    timeOptions.hour12 = true;
+  } else if (timeFormat === '24h') {
+    timeOptions.hour12 = false;
+  }
+  // 'system' leaves hour12 undefined, letting the browser decide
+
+  const timeStr = eta.toLocaleTimeString([], timeOptions);
 
   // Check if it's tomorrow or later
   const dayDiff = Math.floor((etaDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
@@ -865,6 +874,7 @@ function PrinterCard({
   amsThresholds,
   spoolmanEnabled = false,
   hasUnlinkedSpools = false,
+  timeFormat = 'system',
 }: {
   printer: Printer;
   hideIfDisconnected?: boolean;
@@ -879,6 +889,7 @@ function PrinterCard({
   };
   spoolmanEnabled?: boolean;
   hasUnlinkedSpools?: boolean;
+  timeFormat?: 'system' | '12h' | '24h';
 }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -1617,7 +1628,7 @@ function PrinterCard({
                                   {formatTime(status.remaining_time * 60)}
                                 </span>
                                 <span className="text-bambu-green font-medium" title="Estimated completion time">
-                                  ETA {formatETA(status.remaining_time)}
+                                  ETA {formatETA(status.remaining_time, timeFormat)}
                                 </span>
                               </>
                             )}
@@ -3986,6 +3997,7 @@ export function PrintersPage() {
                     } : undefined}
                     spoolmanEnabled={spoolmanEnabled}
                     hasUnlinkedSpools={hasUnlinkedSpools}
+                    timeFormat={settings?.time_format || 'system'}
                   />
                 ))}
               </div>
@@ -4011,6 +4023,7 @@ export function PrintersPage() {
                 tempGood: Number(settings.ams_temp_good) || 28,
                 tempFair: Number(settings.ams_temp_fair) || 35,
               } : undefined}
+              timeFormat={settings?.time_format || 'system'}
             />
           ))}
         </div>

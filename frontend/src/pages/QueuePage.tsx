@@ -43,7 +43,7 @@ import {
   Hand,
 } from 'lucide-react';
 import { api } from '../api/client';
-import { parseUTCDate } from '../utils/date';
+import { parseUTCDate, formatDateTime, type TimeFormat } from '../utils/date';
 import type { PrintQueueItem } from '../api/client';
 import { Card, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
@@ -60,7 +60,7 @@ function formatDuration(seconds: number | null | undefined): string {
   return `${minutes}m`;
 }
 
-function formatRelativeTime(dateString: string | null): string {
+function formatRelativeTime(dateString: string | null, timeFormat: TimeFormat = 'system'): string {
   if (!dateString) return 'ASAP';
   const date = parseUTCDate(dateString);
   if (!date) return 'ASAP';
@@ -72,7 +72,7 @@ function formatRelativeTime(dateString: string | null): string {
   if (diff < 60000) return 'In less than a minute';
   if (diff < 3600000) return `In ${Math.round(diff / 60000)} min`;
   if (diff < 86400000) return `In ${Math.round(diff / 3600000)} hours`;
-  return date.toLocaleString();
+  return formatDateTime(dateString, timeFormat);
 }
 
 function StatusBadge({ status }: { status: PrintQueueItem['status'] }) {
@@ -105,6 +105,7 @@ function SortableQueueItem({
   onStop,
   onRequeue,
   onStart,
+  timeFormat = 'system',
 }: {
   item: PrintQueueItem;
   position?: number;
@@ -114,6 +115,7 @@ function SortableQueueItem({
   onStop: () => void;
   onRequeue: () => void;
   onStart: () => void;
+  timeFormat?: TimeFormat;
 }) {
   const {
     attributes,
@@ -206,7 +208,7 @@ function SortableQueueItem({
             {isPending && !item.manual_start && (
               <span className="flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5" />
-                {formatRelativeTime(item.scheduled_time)}
+                {formatRelativeTime(item.scheduled_time, timeFormat)}
               </span>
             )}
           </div>
@@ -376,6 +378,13 @@ export function QueuePage() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
+
+  const { data: settings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: api.getSettings,
+  });
+
+  const timeFormat: TimeFormat = settings?.time_format || 'system';
 
   const { data: queue, isLoading } = useQuery({
     queryKey: ['queue', filterPrinter, filterStatus],
@@ -659,6 +668,7 @@ export function QueuePage() {
                     onStop={() => setConfirmAction({ type: 'stop', item })}
                     onRequeue={() => {}}
                     onStart={() => {}}
+                    timeFormat={timeFormat}
                   />
                 ))}
               </div>
@@ -722,6 +732,7 @@ export function QueuePage() {
                         onStop={() => {}}
                         onRequeue={() => {}}
                         onStart={() => startMutation.mutate(item.id)}
+                        timeFormat={timeFormat}
                       />
                     ))}
                   </div>
@@ -774,6 +785,7 @@ export function QueuePage() {
                     onStop={() => {}}
                     onRequeue={() => setRequeueItem(item)}
                     onStart={() => {}}
+                    timeFormat={timeFormat}
                   />
                 ))}
               </div>

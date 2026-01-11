@@ -6,6 +6,25 @@
  * displayed in the user's local timezone.
  */
 
+export type TimeFormat = 'system' | '12h' | '24h';
+
+/**
+ * Apply time format setting to Intl.DateTimeFormatOptions.
+ * This modifies the options object in place and returns it.
+ */
+export function applyTimeFormat(
+  options: Intl.DateTimeFormatOptions,
+  timeFormat: TimeFormat = 'system'
+): Intl.DateTimeFormatOptions {
+  if (timeFormat === '12h') {
+    options.hour12 = true;
+  } else if (timeFormat === '24h') {
+    options.hour12 = false;
+  }
+  // 'system' leaves hour12 undefined, letting the browser decide
+  return options;
+}
+
 /**
  * Parse a date string from the backend as UTC.
  * Handles ISO 8601 strings with or without timezone indicators.
@@ -71,4 +90,54 @@ export function formatDateOnly(
   };
 
   return date.toLocaleDateString(undefined, options ?? defaultOptions);
+}
+
+/**
+ * Format a UTC date string to a localized date/time string with time format support.
+ *
+ * @param dateStr - Date string from backend
+ * @param timeFormat - Time format setting ('system', '12h', '24h')
+ * @param options - Intl.DateTimeFormat options (defaults to showing date and time)
+ * @returns Formatted date string in user's locale and timezone
+ */
+export function formatDateTime(
+  dateStr: string | null | undefined,
+  timeFormat: TimeFormat = 'system',
+  options?: Intl.DateTimeFormatOptions
+): string {
+  const date = parseUTCDate(dateStr);
+  if (!date) return '';
+
+  const defaultOptions: Intl.DateTimeFormatOptions = {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  };
+
+  const finalOptions = applyTimeFormat(options ?? defaultOptions, timeFormat);
+  return date.toLocaleString(undefined, finalOptions);
+}
+
+/**
+ * Format a Date object to a localized time string with time format support.
+ *
+ * @param date - Date object
+ * @param timeFormat - Time format setting ('system', '12h', '24h')
+ * @param options - Additional Intl.DateTimeFormat options
+ * @returns Formatted time string
+ */
+export function formatTimeOnly(
+  date: Date,
+  timeFormat: TimeFormat = 'system',
+  options?: Intl.DateTimeFormatOptions
+): string {
+  const defaultOptions: Intl.DateTimeFormatOptions = {
+    hour: '2-digit',
+    minute: '2-digit',
+  };
+
+  const finalOptions = applyTimeFormat({ ...defaultOptions, ...options }, timeFormat);
+  return date.toLocaleTimeString([], finalOptions);
 }

@@ -46,6 +46,12 @@ All notable changes to Bambuddy will be documented in this file.
   - Updates Projects page and Project Detail page instantly
 
 ### Fixed
+- **Time format setting not applied** - Fixed 24-hour time format not being respected across the UI:
+  - ETA display on printer cards now uses configured time format
+  - Archive cards and timelapse file lists respect the setting
+  - AMS history charts use the configured format
+  - Project timeline, queue page, notification logs, and system info all updated
+  - Settings > General > Time Format now works consistently everywhere
 - **QR code endpoint** - Fixed 500 error on archive QR code generation:
   - Added `qrcode[pil]` to requirements.txt
   - Improved error handling for missing dependencies
