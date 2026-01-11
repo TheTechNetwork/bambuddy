@@ -179,8 +179,8 @@ class FirmwareUpdateService:
             result["space_sufficient"] = result["sd_card_free_space"] >= required
             if not result["space_sufficient"]:
                 result["errors"].append(
-                    f"Insufficient SD card space. Need {required // (1024*1024)}MB, "
-                    f"have {result['sd_card_free_space'] // (1024*1024)}MB"
+                    f"Insufficient SD card space. Need {required // (1024 * 1024)}MB, "
+                    f"have {result['sd_card_free_space'] // (1024 * 1024)}MB"
                 )
         elif result["sd_card_present"]:
             # Couldn't determine space, assume sufficient
