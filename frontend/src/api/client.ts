@@ -796,6 +796,7 @@ export interface PrintQueueItem {
   require_previous_success: boolean;
   auto_off_after: boolean;
   manual_start: boolean;  // Requires manual trigger to start (staged)
+  ams_mapping: number[] | null;  // AMS slot mapping for multi-color prints
   status: 'pending' | 'printing' | 'completed' | 'failed' | 'skipped' | 'cancelled';
   started_at: string | null;
   completed_at: string | null;
@@ -814,6 +815,7 @@ export interface PrintQueueItemCreate {
   require_previous_success?: boolean;
   auto_off_after?: boolean;
   manual_start?: boolean;  // Requires manual trigger to start (staged)
+  ams_mapping?: number[] | null;  // AMS slot mapping for multi-color prints
 }
 
 export interface PrintQueueItemUpdate {

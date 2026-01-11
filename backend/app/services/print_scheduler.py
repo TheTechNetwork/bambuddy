@@ -315,8 +315,22 @@ class PrintScheduler:
 
         register_expected_print(item.printer_id, remote_filename, archive.id)
 
-        # Start the print
-        started = printer_manager.start_print(item.printer_id, remote_filename)
+        # Parse AMS mapping if stored
+        ams_mapping = None
+        if item.ams_mapping:
+            try:
+                import json
+
+                ams_mapping = json.loads(item.ams_mapping)
+            except json.JSONDecodeError:
+                logger.warning(f"Queue item {item.id}: Invalid AMS mapping JSON, ignoring")
+
+        # Start the print with AMS mapping if available
+        started = printer_manager.start_print(
+            item.printer_id,
+            remote_filename,
+            ams_mapping=ams_mapping,
+        )
 
         if started:
             item.status = "printing"

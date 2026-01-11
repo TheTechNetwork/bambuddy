@@ -1,5 +1,6 @@
 """API routes for print queue management."""
 
+import json
 import logging
 from datetime import datetime
 
@@ -27,6 +28,12 @@ router = APIRouter(prefix="/queue", tags=["queue"])
 def _enrich_response(item: PrintQueueItem) -> PrintQueueItemResponse:
     """Add nested archive/printer info to response."""
     response = PrintQueueItemResponse.model_validate(item)
+    # Parse ams_mapping from JSON string
+    if item.ams_mapping:
+        try:
+            response.ams_mapping = json.loads(item.ams_mapping)
+        except json.JSONDecodeError:
+            response.ams_mapping = None
     if item.archive:
         response.archive_name = item.archive.print_name or item.archive.filename
         response.archive_thumbnail = item.archive.thumbnail_path
@@ -90,6 +97,7 @@ async def add_to_queue(
         require_previous_success=data.require_previous_success,
         auto_off_after=data.auto_off_after,
         manual_start=data.manual_start,
+        ams_mapping=json.dumps(data.ams_mapping) if data.ams_mapping else None,
         position=max_pos + 1,
         status="pending",
     )

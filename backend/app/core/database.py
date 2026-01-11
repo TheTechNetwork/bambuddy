@@ -393,6 +393,12 @@ async def run_migrations(conn):
     except Exception:
         pass
 
+    # Migration: Add ams_mapping column to print_queue for storing filament slot assignments
+    try:
+        await conn.execute(text("ALTER TABLE print_queue ADD COLUMN ams_mapping TEXT"))
+    except Exception:
+        pass
+
 
 async def seed_notification_templates():
     """Seed default notification templates if they don't exist."""

@@ -22,6 +22,9 @@ class PrintQueueItemCreate(BaseModel):
     require_previous_success: bool = False
     auto_off_after: bool = False  # Power off printer after print completes
     manual_start: bool = False  # Requires manual trigger to start (staged)
+    # AMS mapping: list of global tray IDs for each filament slot
+    # Format: [5, -1, 2, -1] where position = slot_id-1, value = global tray ID (-1 = unused)
+    ams_mapping: list[int] | None = None
 
 
 class PrintQueueItemUpdate(BaseModel):
@@ -42,6 +45,7 @@ class PrintQueueItemResponse(BaseModel):
     require_previous_success: bool
     auto_off_after: bool
     manual_start: bool
+    ams_mapping: list[int] | None = None
     status: Literal["pending", "printing", "completed", "failed", "skipped", "cancelled"]
     started_at: UTCDatetime
     completed_at: UTCDatetime

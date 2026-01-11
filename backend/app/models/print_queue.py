@@ -29,6 +29,10 @@ class PrintQueueItem(Base):
     # Power management
     auto_off_after: Mapped[bool] = mapped_column(Boolean, default=False)  # Power off printer after print
 
+    # AMS mapping: JSON array of global tray IDs for each filament slot
+    # Format: "[5, -1, 2, -1]" where position = slot_id-1, value = global tray ID (-1 = unused)
+    ams_mapping: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     # Status: pending, printing, completed, failed, skipped, cancelled
     status: Mapped[str] = mapped_column(String(20), default="pending")
 

@@ -2,6 +2,18 @@
 
 All notable changes to Bambuddy will be documented in this file.
 
+## [0.1.6b10] - 2026-01-11
+
+### Added
+- **AMS color mapping** - Manually select which AMS slot to use for each filament:
+  - ReprintModal: Click dropdown to override auto-matched slots
+  - AddToQueueModal: Collapsible filament mapping section with slot selection
+  - Mapping stored with queued prints and used when print starts
+  - Blue ring indicator shows manually selected slots vs auto-matched
+  - Status indicators: green (match), yellow (type only), orange (not found)
+  - Re-read button to refresh AMS status if spools were swapped
+  - Color names shown in dropdowns (decoded from Bambu filament codes or derived from hex)
+
 ## [0.1.6b9] - 2026-01-09
 
 ### Added
