@@ -241,7 +241,8 @@ async def on_printer_status_change(printer_id: int, state: PrinterState):
         f"{state.connected}:{state.state}:{state.progress}:{state.layer_num}:"
         f"{nozzle_temp}:{bed_temp}:{nozzle_2_temp}:{chamber_temp}:"
         f"{state.stg_cur}:{bed_target}:{nozzle_target}:"
-        f"{state.cooling_fan_speed}:{state.big_fan1_speed}:{state.big_fan2_speed}"
+        f"{state.cooling_fan_speed}:{state.big_fan1_speed}:{state.big_fan2_speed}:"
+        f"{state.chamber_light}"
     )
     if _last_status_broadcast.get(printer_id) == status_key:
         return  # No change, skip broadcast
