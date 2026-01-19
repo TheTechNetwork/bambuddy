@@ -62,11 +62,11 @@ class TestTelemetryService:
     # ========================================================================
 
     @pytest.mark.asyncio
-    async def test_is_telemetry_enabled_default_true(self, db_session):
-        """Verify telemetry is enabled by default (opt-out model)."""
+    async def test_is_telemetry_enabled_default_false(self, db_session):
+        """Verify telemetry is disabled by default (opt-in model)."""
         result = await is_telemetry_enabled(db_session)
 
-        assert result is True
+        assert result is False
 
     @pytest.mark.asyncio
     async def test_is_telemetry_enabled_explicit_true(self, db_session):
@@ -144,6 +144,11 @@ class TestTelemetryService:
     @pytest.mark.asyncio
     async def test_send_heartbeat_success(self, db_session, mock_httpx_client):
         """Verify heartbeat is sent successfully when enabled."""
+        # Enable telemetry
+        setting = Settings(key="telemetry_enabled", value="true")
+        db_session.add(setting)
+        await db_session.commit()
+
         # Reset the last heartbeat to allow sending
         import backend.app.services.telemetry as telemetry_module
 
@@ -156,6 +161,11 @@ class TestTelemetryService:
     @pytest.mark.asyncio
     async def test_send_heartbeat_rate_limited(self, db_session):
         """Verify heartbeat is rate limited to once per day."""
+        # Enable telemetry
+        setting = Settings(key="telemetry_enabled", value="true")
+        db_session.add(setting)
+        await db_session.commit()
+
         import backend.app.services.telemetry as telemetry_module
 
         # Set last heartbeat to recent time
@@ -188,6 +198,11 @@ class TestTelemetryService:
     @pytest.mark.asyncio
     async def test_send_heartbeat_sends_correct_data(self, db_session):
         """Verify heartbeat sends correct payload."""
+        # Enable telemetry
+        setting = Settings(key="telemetry_enabled", value="true")
+        db_session.add(setting)
+        await db_session.commit()
+
         import backend.app.services.telemetry as telemetry_module
         from backend.app.core.config import APP_VERSION
 
