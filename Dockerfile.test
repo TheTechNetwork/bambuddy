@@ -1,5 +1,5 @@
 # Test image for running backend and frontend tests
-FROM python:3.13-slim AS backend-test
+FROM python:3.14-slim AS backend-test
 
 WORKDIR /app
 
