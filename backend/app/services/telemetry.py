@@ -45,13 +45,13 @@ async def get_or_create_installation_id(db: AsyncSession) -> str:
 
 
 async def is_telemetry_enabled(db: AsyncSession) -> bool:
-    """Check if telemetry is enabled (opt-out model)."""
+    """Check if telemetry is enabled (opt-in model)."""
     result = await db.execute(select(Settings).where(Settings.key == "telemetry_enabled"))
     setting = result.scalar_one_or_none()
 
-    # Default to enabled (opt-out model)
+    # Default to disabled (opt-in model)
     if not setting:
-        return True
+        return False
 
     return setting.value.lower() == "true"
 
