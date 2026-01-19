@@ -345,7 +345,7 @@ export function AMSHistoryModal({
                       hour: '2-digit',
                       minute: '2-digit',
                     }, timeFormat))}
-                    formatter={(value: ValueType) => [
+                    formatter={(value: ValueType | undefined) => [
                       value != null && typeof value === 'number' ? (mode === 'humidity' ? `${value}%` : `${value}°C`) : '—',
                       mode === 'humidity' ? 'Humidity' : 'Temperature'
                     ]}
