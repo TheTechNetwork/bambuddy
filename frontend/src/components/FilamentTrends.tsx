@@ -14,7 +14,7 @@ import {
   Cell,
   Legend,
 } from 'recharts';
-import type { ValueType } from 'recharts/types/component/DefaultTooltipContent';
+import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
 import type { Archive } from '../api/client';
 import { parseUTCDate } from '../utils/date';
 
@@ -321,7 +321,7 @@ export function FilamentTrends({ archives, currency = '$' }: FilamentTrendsProps
                   border: '1px solid #3d3d3d',
                   borderRadius: '8px',
                 }}
-                formatter={(value: ValueType | undefined, name: string) => [
+                formatter={(value: ValueType | undefined, name: NameType) => [
                   value != null && typeof value === 'number' ? (name === 'filament' ? `${value}g` : name === 'cost' ? `${currency}${value.toFixed(2)}` : value) : '—',
                   name === 'filament' ? 'Filament' : name === 'cost' ? 'Cost' : 'Prints'
                 ]}
