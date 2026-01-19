@@ -321,7 +321,7 @@ export function FilamentTrends({ archives, currency = '$' }: FilamentTrendsProps
                   border: '1px solid #3d3d3d',
                   borderRadius: '8px',
                 }}
-                formatter={(value: ValueType | undefined, name: NameType) => [
+                formatter={(value: ValueType | undefined, name: NameType | undefined) => [
                   value != null && typeof value === 'number' ? (name === 'filament' ? `${value}g` : name === 'cost' ? `${currency}${value.toFixed(2)}` : value) : '—',
                   name === 'filament' ? 'Filament' : name === 'cost' ? 'Cost' : 'Prints'
                 ]}
