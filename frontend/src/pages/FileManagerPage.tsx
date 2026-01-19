@@ -845,7 +845,7 @@ export function FileManagerPage() {
     if (newFolderId !== selectedFolderId) {
       setSelectedFolderId(newFolderId);
     }
-  }, [searchParams]);
+  }, [searchParams, selectedFolderId]);
 
   // Queries
   const { data: settings } = useQuery({
