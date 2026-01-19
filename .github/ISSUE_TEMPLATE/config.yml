@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Documentation
-    url: https://github.com/maziggy/bambuddy-wiki
+    url: https://github.com/TheTechNetwork/bambuddy-wiki
     about: Check the documentation for guides and troubleshooting
   - name: Discussions
-    url: https://github.com/maziggy/bambuddy/discussions
+    url: https://github.com/TheTechNetwork/bambuddy/discussions
     about: Ask questions and share ideas with the community

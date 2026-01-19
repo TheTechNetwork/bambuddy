@@ -287,7 +287,7 @@ All notable changes to Bambuddy will be documented in this file.
 
 ### Added
 - **Pre-built Docker images** - Ready-to-use container images on GitHub Container Registry:
-  - Pull directly: `docker pull ghcr.io/maziggy/bambuddy:latest`
+  - Pull directly: `docker pull ghcr.io/thetechnetwork/bambuddy:latest`
   - Multi-architecture support: `linux/amd64` and `linux/arm64` (Raspberry Pi 4/5)
   - No build required - just `docker compose up -d`
   - Automatic architecture detection - Docker pulls the right image for your system

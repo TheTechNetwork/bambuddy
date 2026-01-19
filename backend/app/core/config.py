@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings
 
 # Application version - single source of truth
 APP_VERSION = "0.1.6b8"
-GITHUB_REPO = "maziggy/bambuddy"
+GITHUB_REPO = "TheTechNetwork/bambuddy"
 
 # App directory - where the application is installed (for static files)
 _app_dir = Path(__file__).resolve().parent.parent.parent.parent

@@ -9,10 +9,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/maziggy/bambuddy/releases"><img src="https://img.shields.io/github/v/release/maziggy/bambuddy?style=flat-square&color=blue" alt="Release"></a>
-  <a href="https://github.com/maziggy/bambuddy/blob/main/LICENSE"><img src="https://img.shields.io/github/license/maziggy/bambuddy?style=flat-square" alt="License"></a>
-  <a href="https://github.com/maziggy/bambuddy/stargazers"><img src="https://img.shields.io/github/stars/maziggy/bambuddy?style=flat-square" alt="Stars"></a>
-  <a href="https://github.com/maziggy/bambuddy/issues"><img src="https://img.shields.io/github/issues/maziggy/bambuddy?style=flat-square" alt="Issues"></a>
+  <a href="https://github.com/TheTechNetwork/bambuddy/releases"><img src="https://img.shields.io/github/v/release/maziggy/bambuddy?style=flat-square&color=blue" alt="Release"></a>
+  <a href="https://github.com/TheTechNetwork/bambuddy/blob/main/LICENSE"><img src="https://img.shields.io/github/license/maziggy/bambuddy?style=flat-square" alt="License"></a>
+  <a href="https://github.com/TheTechNetwork/bambuddy/stargazers"><img src="https://img.shields.io/github/stars/maziggy/bambuddy?style=flat-square" alt="Stars"></a>
+  <a href="https://github.com/TheTechNetwork/bambuddy/issues"><img src="https://img.shields.io/github/issues/maziggy/bambuddy?style=flat-square" alt="Issues"></a>
   <a href="https://discord.gg/aFS3ZfScHM"><img src="https://img.shields.io/discord/1461241694715645994?style=flat-square&logo=discord&logoColor=white&label=Discord&color=5865F2" alt="Discord"></a>
 </p>
 
@@ -27,7 +27,7 @@
 
 ---
 
-> **Testers Needed!** I only have X1C and H2D devices. Help make Bambuddy work with all Bambu Lab printers by [reporting your experience](https://github.com/maziggy/bambuddy/issues)!
+> **Testers Needed!** I only have X1C and H2D devices. Help make Bambuddy work with all Bambu Lab printers by [reporting your experience](https://github.com/TheTechNetwork/bambuddy/issues)!
 
 ## Why Bambuddy?
 
@@ -270,13 +270,13 @@
 **Option A: Pre-built image (fastest)**
 ```bash
 mkdir bambuddy && cd bambuddy
-curl -O https://raw.githubusercontent.com/maziggy/bambuddy/main/docker-compose.yml
+curl -O https://raw.githubusercontent.com/TheTechNetwork/bambuddy/main/docker-compose.yml
 docker compose up -d
 ```
 
 **Option B: Build from source**
 ```bash
-git clone https://github.com/maziggy/bambuddy.git
+git clone https://github.com/TheTechNetwork/bambuddy.git
 cd bambuddy
 docker compose up -d --build
 ```
@@ -380,7 +380,7 @@ services:
 
 ```bash
 # Clone and setup
-git clone https://github.com/maziggy/bambuddy.git
+git clone https://github.com/TheTechNetwork/bambuddy.git
 cd bambuddy
 python3 -m venv venv
 source venv/bin/activate
@@ -454,7 +454,7 @@ Contributions welcome! Here's how to help:
 
 ```bash
 # Development setup
-git clone https://github.com/maziggy/bambuddy.git
+git clone https://github.com/TheTechNetwork/bambuddy.git
 cd bambuddy
 
 # Backend
@@ -488,7 +488,7 @@ MIT License — see [LICENSE](LICENSE) for details.
   Made with ❤️ for the 3D printing community
   <br><br>
   <a href="https://discord.gg/aFS3ZfScHM">Join our Discord</a> •
-  <a href="https://github.com/maziggy/bambuddy/issues">Report Bug</a> •
-  <a href="https://github.com/maziggy/bambuddy/issues">Request Feature</a> •
+  <a href="https://github.com/TheTechNetwork/bambuddy/issues">Report Bug</a> •
+  <a href="https://github.com/TheTechNetwork/bambuddy/issues">Request Feature</a> •
   <a href="http://wiki.bambuddy.cool">Documentation</a>
 </p>
