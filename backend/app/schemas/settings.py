@@ -51,7 +51,7 @@ class AppSettings(BaseModel):
     # Telemetry
     telemetry_enabled: bool = Field(
         default=False,
-        description="Send anonymous usage data to telemetry.bambuddy.cool daily: installation ID, version, and count of each printer model type. No personal info, printer names, IPs, or print data.",
+        description="Send anonymous usage data to telemetry.bambuddy.cool every 24 hours: installation ID, version, and count of each printer model type. No personal info, printer names, IPs, or print data.",
     )
 
     # Virtual Printer
