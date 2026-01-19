@@ -24,7 +24,7 @@ set -e
 
 # Configuration
 REGISTRY="ghcr.io"
-IMAGE_NAME="maziggy/bambuddy"
+IMAGE_NAME="thetechnetwork/bambuddy"
 FULL_IMAGE="${REGISTRY}/${IMAGE_NAME}"
 PLATFORMS="linux/amd64,linux/arm64"
 BUILDER_NAME="bambuddy-builder"

@@ -28,7 +28,7 @@ Please read and follow our [Code of Conduct](CODE_OF_CONDUCT.md) to keep our com
    ```
 3. **Add the upstream remote**:
    ```bash
-   git remote add upstream https://github.com/maziggy/bambuddy.git
+   git remote add upstream https://github.com/TheTechNetwork/bambuddy.git
    ```
 
 ## Development Setup
@@ -195,7 +195,7 @@ npm run test:coverage
 
 ## Reporting Bugs
 
-Use the [Bug Report template](https://github.com/maziggy/bambuddy/issues/new?template=bug_report.yml) and include:
+Use the [Bug Report template](https://github.com/TheTechNetwork/bambuddy/issues/new?template=bug_report.yml) and include:
 
 - Clear description of the bug
 - Steps to reproduce
@@ -206,7 +206,7 @@ Use the [Bug Report template](https://github.com/maziggy/bambuddy/issues/new?tem
 
 ## Requesting Features
 
-Use the [Feature Request template](https://github.com/maziggy/bambuddy/issues/new?template=feature_request.yml) and include:
+Use the [Feature Request template](https://github.com/TheTechNetwork/bambuddy/issues/new?template=feature_request.yml) and include:
 
 - Clear description of the feature
 - Use case / problem it solves
@@ -216,8 +216,8 @@ Use the [Feature Request template](https://github.com/maziggy/bambuddy/issues/ne
 ## Questions?
 
 - Check the [Documentation](http://wiki.bambuddy.cool)
-- Open a [Discussion](https://github.com/maziggy/bambuddy/discussions)
-- Review existing [Issues](https://github.com/maziggy/bambuddy/issues)
+- Open a [Discussion](https://github.com/TheTechNetwork/bambuddy/discussions)
+- Review existing [Issues](https://github.com/TheTechNetwork/bambuddy/issues)
 
 ---
 
