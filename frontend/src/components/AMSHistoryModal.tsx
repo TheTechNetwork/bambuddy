@@ -12,6 +12,7 @@ import {
   Legend,
   ReferenceLine,
 } from 'recharts';
+import type { ValueType } from 'recharts/types/component/DefaultTooltipContent';
 import { api, type AMSHistoryResponse } from '../api/client';
 import { parseUTCDate, applyTimeFormat, type TimeFormat } from '../utils/date';
 import { useTranslation } from 'react-i18next';
@@ -344,8 +345,8 @@ export function AMSHistoryModal({
                       hour: '2-digit',
                       minute: '2-digit',
                     }, timeFormat))}
-                    formatter={(value: number) => [
-                      mode === 'humidity' ? `${value}%` : `${value}°C`,
+                    formatter={(value: ValueType) => [
+                      value != null && typeof value === 'number' ? (mode === 'humidity' ? `${value}%` : `${value}°C`) : '—',
                       mode === 'humidity' ? 'Humidity' : 'Temperature'
                     ]}
                   />

@@ -14,6 +14,7 @@ import {
   Cell,
   Legend,
 } from 'recharts';
+import type { ValueType } from 'recharts/types/component/DefaultTooltipContent';
 import type { Archive } from '../api/client';
 import { parseUTCDate } from '../utils/date';
 
@@ -231,7 +232,7 @@ export function FilamentTrends({ archives, currency = '$' }: FilamentTrendsProps
                   borderRadius: '8px',
                 }}
                 labelStyle={{ color: '#fff' }}
-                formatter={(value: number) => [`${value.toFixed(0)}g`, 'Filament']}
+                formatter={(value: ValueType) => [value != null && typeof value === 'number' ? `${value.toFixed(0)}g` : '—', 'Filament']}
               />
               <Area
                 type="monotone"
@@ -278,7 +279,7 @@ export function FilamentTrends({ archives, currency = '$' }: FilamentTrendsProps
                       border: '1px solid #3d3d3d',
                       borderRadius: '8px',
                     }}
-                    formatter={(value: number) => [`${value}g`, 'Usage']}
+                    formatter={(value: ValueType) => [value != null && typeof value === 'number' ? `${value}g` : '—', 'Usage']}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -320,8 +321,8 @@ export function FilamentTrends({ archives, currency = '$' }: FilamentTrendsProps
                   border: '1px solid #3d3d3d',
                   borderRadius: '8px',
                 }}
-                formatter={(value: number, name: string) => [
-                  name === 'filament' ? `${value}g` : name === 'cost' ? `${currency}${value.toFixed(2)}` : value,
+                formatter={(value: ValueType, name: string) => [
+                  value != null && typeof value === 'number' ? (name === 'filament' ? `${value}g` : name === 'cost' ? `${currency}${value.toFixed(2)}` : value) : '—',
                   name === 'filament' ? 'Filament' : name === 'cost' ? 'Cost' : 'Prints'
                 ]}
               />
