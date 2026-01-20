@@ -2836,6 +2836,7 @@ export interface LibraryFileListItem {
 }
 
 export interface LibraryFileUpdate {
+  filename?: string;
   folder_id?: number | null;
   project_id?: number | null;
   notes?: string | null;
