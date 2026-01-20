@@ -48,8 +48,7 @@ import type { PrintQueueItem } from '../api/client';
 import { Card, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
-import { EditQueueItemModal } from '../components/EditQueueItemModal';
-import { AddToQueueModal } from '../components/AddToQueueModal';
+import { PrintModal } from '../components/PrintModal';
 import { useToast } from '../contexts/ToastContext';
 
 function formatDuration(seconds: number | null | undefined): string {
@@ -802,15 +801,19 @@ export function QueuePage() {
 
       {/* Edit Modal */}
       {editItem && (
-        <EditQueueItemModal
-          item={editItem}
+        <PrintModal
+          mode="edit-queue-item"
+          archiveId={editItem.archive_id}
+          archiveName={editItem.archive_name || `Archive #${editItem.archive_id}`}
+          queueItem={editItem}
           onClose={() => setEditItem(null)}
         />
       )}
 
       {/* Re-queue Modal */}
       {requeueItem && (
-        <AddToQueueModal
+        <PrintModal
+          mode="add-to-queue"
           archiveId={requeueItem.archive_id}
           archiveName={requeueItem.archive_name || `Archive #${requeueItem.archive_id}`}
           onClose={() => setRequeueItem(null)}

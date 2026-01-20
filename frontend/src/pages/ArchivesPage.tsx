@@ -50,7 +50,7 @@ import type { Archive, ProjectListItem } from '../api/client';
 import { Card, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
 import { ModelViewerModal } from '../components/ModelViewerModal';
-import { ReprintModal } from '../components/ReprintModal';
+import { PrintModal } from '../components/PrintModal';
 import { UploadModal } from '../components/UploadModal';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { EditArchiveModal } from '../components/EditArchiveModal';
@@ -62,7 +62,6 @@ import { QRCodeModal } from '../components/QRCodeModal';
 import { PhotoGalleryModal } from '../components/PhotoGalleryModal';
 import { ProjectPageModal } from '../components/ProjectPageModal';
 import { TimelapseViewer } from '../components/TimelapseViewer';
-import { AddToQueueModal } from '../components/AddToQueueModal';
 import { CompareArchivesModal } from '../components/CompareArchivesModal';
 import { PendingUploadsPanel } from '../components/PendingUploadsPanel';
 import { useToast } from '../contexts/ToastContext';
@@ -882,13 +881,11 @@ function ArchiveCard({
 
       {/* Reprint Modal */}
       {showReprint && (
-        <ReprintModal
+        <PrintModal
+          mode="reprint"
           archiveId={archive.id}
           archiveName={archive.print_name || archive.filename}
           onClose={() => setShowReprint(false)}
-          onSuccess={() => {
-            // Could show a toast notification here
-          }}
         />
       )}
 
@@ -1056,7 +1053,8 @@ function ArchiveCard({
       )}
 
       {showSchedule && (
-        <AddToQueueModal
+        <PrintModal
+          mode="add-to-queue"
           archiveId={archive.id}
           archiveName={archive.print_name || archive.filename}
           onClose={() => setShowSchedule(false)}
@@ -1630,11 +1628,11 @@ function ArchiveListRow({
 
       {/* Reprint Modal */}
       {showReprint && (
-        <ReprintModal
+        <PrintModal
+          mode="reprint"
           archiveId={archive.id}
           archiveName={archive.print_name || archive.filename}
           onClose={() => setShowReprint(false)}
-          onSuccess={() => {}}
         />
       )}
 
@@ -1790,7 +1788,8 @@ function ArchiveListRow({
 
       {/* Schedule Modal */}
       {showSchedule && (
-        <AddToQueueModal
+        <PrintModal
+          mode="add-to-queue"
           archiveId={archive.id}
           archiveName={archive.print_name || archive.filename}
           onClose={() => setShowSchedule(false)}
