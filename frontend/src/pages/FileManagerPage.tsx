@@ -559,7 +559,6 @@ function UploadModal({ folderId, onClose, onUploadComplete }: UploadModalProps) 
             ref={fileInputRef}
             type="file"
             multiple
-            accept="*"
             className="hidden"
             onChange={handleFileSelect}
           />
