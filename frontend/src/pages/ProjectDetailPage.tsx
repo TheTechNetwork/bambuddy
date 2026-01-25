@@ -27,10 +27,12 @@ import {
   ExternalLink,
   ShoppingCart,
   FolderOpen,
+  Download,
+  Pencil,
 } from 'lucide-react';
 import { api } from '../api/client';
 import { parseUTCDate, formatDateOnly, formatDateTime, type TimeFormat } from '../utils/date';
-import type { Archive, ProjectUpdate, BOMItem, BOMItemCreate } from '../api/client';
+import type { Archive, ProjectUpdate, BOMItem, BOMItemCreate, BOMItemUpdate } from '../api/client';
 import { Card, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
 import { useToast } from '../contexts/ToastContext';
@@ -276,6 +278,12 @@ export function ProjectDetailPage() {
   const [newBomRemarks, setNewBomRemarks] = useState('');
   const [showBomForm, setShowBomForm] = useState(false);
   const [hideBomCompleted, setHideBomCompleted] = useState(false);
+  const [editingBomItem, setEditingBomItem] = useState<BOMItem | null>(null);
+  const [editBomName, setEditBomName] = useState('');
+  const [editBomQty, setEditBomQty] = useState(1);
+  const [editBomPrice, setEditBomPrice] = useState('');
+  const [editBomUrl, setEditBomUrl] = useState('');
+  const [editBomRemarks, setEditBomRemarks] = useState('');
 
   // Confirm modal state
   const [confirmModal, setConfirmModal] = useState<{
@@ -302,11 +310,12 @@ export function ProjectDetailPage() {
   });
 
   const updateBomMutation = useMutation({
-    mutationFn: ({ itemId, data }: { itemId: number; data: { quantity_acquired?: number } }) =>
+    mutationFn: ({ itemId, data }: { itemId: number; data: BOMItemUpdate }) =>
       api.updateBOMItem(projectId, itemId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project-bom', projectId] });
       queryClient.invalidateQueries({ queryKey: ['project', projectId] });
+      setEditingBomItem(null);
     },
     onError: (error: Error) => showToast(error.message, 'error'),
   });
@@ -351,6 +360,57 @@ export function ProjectDetailPage() {
         deleteBomMutation.mutate(itemId);
       },
     });
+  };
+
+  const handleEditBomItem = (item: BOMItem) => {
+    setEditingBomItem(item);
+    setEditBomName(item.name);
+    setEditBomQty(item.quantity_needed);
+    setEditBomPrice(item.unit_price?.toString() || '');
+    setEditBomUrl(item.sourcing_url || '');
+    setEditBomRemarks(item.remarks || '');
+  };
+
+  const handleSaveBomEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBomItem || !editBomName.trim()) return;
+    updateBomMutation.mutate({
+      itemId: editingBomItem.id,
+      data: {
+        name: editBomName.trim(),
+        quantity_needed: editBomQty,
+        unit_price: editBomPrice ? parseFloat(editBomPrice) : undefined,
+        sourcing_url: editBomUrl.trim() || undefined,
+        remarks: editBomRemarks.trim() || undefined,
+      },
+    });
+  };
+
+  const handleCancelBomEdit = () => {
+    setEditingBomItem(null);
+  };
+
+  const handleExportProject = async () => {
+    try {
+      // Fetch ZIP file directly
+      const response = await fetch(`/api/v1/projects/${projectId}/export`);
+      if (!response.ok) {
+        throw new Error('Export failed');
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      // Get filename from Content-Disposition header or use default
+      const contentDisposition = response.headers.get('Content-Disposition');
+      const filenameMatch = contentDisposition?.match(/filename="(.+)"/);
+      a.download = filenameMatch?.[1] || `${project?.name || 'project'}_${new Date().toISOString().split('T')[0]}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Project exported', 'success');
+    } catch (error) {
+      showToast((error as Error).message, 'error');
+    }
   };
 
   // Template handlers
@@ -433,10 +493,16 @@ export function ProjectDetailPage() {
           </div>
           <StatusBadge status={project.status} />
         </div>
-        <Button onClick={() => setShowEditModal(true)}>
-          <Edit3 className="w-4 h-4 mr-2" />
-          Edit
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={handleExportProject} title="Export project">
+            <Download className="w-4 h-4 mr-2" />
+            Export
+          </Button>
+          <Button onClick={() => setShowEditModal(true)}>
+            <Edit3 className="w-4 h-4 mr-2" />
+            Edit
+          </Button>
+        </div>
       </div>
 
       {/* Progress bars (if targets set) */}
@@ -903,70 +969,140 @@ export function ProjectDetailPage() {
                     item.is_complete ? 'bg-status-ok/10' : 'bg-bambu-dark'
                   }`}
                 >
-                  <div className="flex items-start gap-3">
-                    <button
-                      onClick={() => handleToggleAcquired(item)}
-                      disabled={updateBomMutation.isPending}
-                      className={`w-5 h-5 mt-0.5 rounded border-2 flex items-center justify-center transition-colors flex-shrink-0 ${
-                        item.is_complete
-                          ? 'bg-status-ok border-status-ok text-white'
-                          : 'border-bambu-gray hover:border-bambu-green'
-                      }`}
-                    >
-                      {item.is_complete && <CheckCircle className="w-3 h-3" />}
-                    </button>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <p className={`text-sm font-medium ${item.is_complete ? 'text-bambu-gray line-through' : 'text-white'}`}>
-                            {item.name}
-                            <span className="text-bambu-gray font-normal ml-2">
-                              x{item.quantity_needed}
-                            </span>
-                          </p>
-                          {item.unit_price !== null && (
-                            <span className="text-xs text-bambu-green whitespace-nowrap">
-                              {currency}{(item.unit_price * item.quantity_needed).toFixed(2)}
-                            </span>
-                          )}
+                  {editingBomItem?.id === item.id ? (
+                    // Edit form for this BOM item
+                    <form onSubmit={handleSaveBomEdit} className="space-y-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <input
+                          type="text"
+                          value={editBomName}
+                          onChange={(e) => setEditBomName(e.target.value)}
+                          className="bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded px-3 py-2 text-sm text-white placeholder-bambu-gray focus:outline-none focus:border-bambu-green"
+                          placeholder="Part name"
+                          autoFocus
+                        />
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            value={editBomQty}
+                            onChange={(e) => setEditBomQty(parseInt(e.target.value) || 1)}
+                            className="w-20 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-bambu-green"
+                            min="1"
+                            placeholder="Qty"
+                          />
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={editBomPrice}
+                            onChange={(e) => setEditBomPrice(e.target.value)}
+                            className="flex-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded px-3 py-2 text-sm text-white placeholder-bambu-gray focus:outline-none focus:border-bambu-green"
+                            placeholder={`Price (${currency})`}
+                          />
                         </div>
-                        <button
-                          onClick={() => handleDeleteBomItem(item.id, item.name)}
-                          className="p-1 rounded hover:bg-bambu-dark-tertiary text-bambu-gray hover:text-red-400 transition-colors flex-shrink-0"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
                       </div>
-                      {/* Sourcing URL */}
-                      {item.sourcing_url && (
-                        <a
-                          href={item.sourcing_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1 mt-1 text-xs text-blue-400 hover:text-blue-300 transition-colors"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <ExternalLink className="w-3 h-3 flex-shrink-0" />
-                          <span className="truncate">
-                            {(() => {
-                              try {
-                                return new URL(item.sourcing_url).hostname.replace('www.', '');
-                              } catch {
-                                return item.sourcing_url;
-                              }
-                            })()}
-                          </span>
-                        </a>
-                      )}
-                      {/* Remarks */}
-                      {item.remarks && (
-                        <p className="mt-1 text-xs text-bambu-gray/80 italic">
-                          {item.remarks}
-                        </p>
-                      )}
+                      <input
+                        type="url"
+                        value={editBomUrl}
+                        onChange={(e) => setEditBomUrl(e.target.value)}
+                        className="w-full bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded px-3 py-2 text-sm text-white placeholder-bambu-gray focus:outline-none focus:border-bambu-green"
+                        placeholder="Sourcing URL (optional)"
+                      />
+                      <input
+                        type="text"
+                        value={editBomRemarks}
+                        onChange={(e) => setEditBomRemarks(e.target.value)}
+                        className="w-full bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded px-3 py-2 text-sm text-white placeholder-bambu-gray focus:outline-none focus:border-bambu-green"
+                        placeholder="Remarks (optional)"
+                      />
+                      <div className="flex justify-end gap-2">
+                        <Button type="button" variant="secondary" size="sm" onClick={handleCancelBomEdit}>
+                          Cancel
+                        </Button>
+                        <Button type="submit" size="sm" disabled={!editBomName.trim() || updateBomMutation.isPending}>
+                          {updateBomMutation.isPending ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            'Save'
+                          )}
+                        </Button>
+                      </div>
+                    </form>
+                  ) : (
+                    // Display mode
+                    <div className="flex items-start gap-3">
+                      <button
+                        onClick={() => handleToggleAcquired(item)}
+                        disabled={updateBomMutation.isPending}
+                        className={`w-5 h-5 mt-0.5 rounded border-2 flex items-center justify-center transition-colors flex-shrink-0 ${
+                          item.is_complete
+                            ? 'bg-status-ok border-status-ok text-white'
+                            : 'border-bambu-gray hover:border-bambu-green'
+                        }`}
+                      >
+                        {item.is_complete && <CheckCircle className="w-3 h-3" />}
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <p className={`text-sm font-medium ${item.is_complete ? 'text-bambu-gray line-through' : 'text-white'}`}>
+                              {item.name}
+                              <span className="text-bambu-gray font-normal ml-2">
+                                x{item.quantity_needed}
+                              </span>
+                            </p>
+                            {item.unit_price !== null && (
+                              <span className="text-xs text-bambu-green whitespace-nowrap">
+                                {currency}{(item.unit_price * item.quantity_needed).toFixed(2)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleEditBomItem(item)}
+                              className="p-1 rounded hover:bg-bambu-dark-tertiary text-bambu-gray hover:text-white transition-colors flex-shrink-0"
+                              title="Edit"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteBomItem(item.id, item.name)}
+                              className="p-1 rounded hover:bg-bambu-dark-tertiary text-bambu-gray hover:text-red-400 transition-colors flex-shrink-0"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        {/* Sourcing URL */}
+                        {item.sourcing_url && (
+                          <a
+                            href={item.sourcing_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 mt-1 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                            <span className="truncate">
+                              {(() => {
+                                try {
+                                  return new URL(item.sourcing_url).hostname.replace('www.', '');
+                                } catch {
+                                  return item.sourcing_url;
+                                }
+                              })()}
+                            </span>
+                          </a>
+                        )}
+                        {/* Remarks */}
+                        {item.remarks && (
+                          <p className="mt-1 text-xs text-bambu-gray/80 italic">
+                            {item.remarks}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               ))}
               {/* BOM Total */}

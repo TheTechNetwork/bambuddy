@@ -530,6 +530,53 @@ export interface BOMItemUpdate {
   remarks?: string;
 }
 
+// Project Export/Import Types
+export interface BOMItemExport {
+  name: string;
+  quantity_needed: number;
+  quantity_acquired: number;
+  unit_price: number | null;
+  sourcing_url: string | null;
+  stl_filename: string | null;
+  remarks: string | null;
+}
+
+export interface LinkedFolderExport {
+  name: string;
+}
+
+export interface ProjectExport {
+  name: string;
+  description: string | null;
+  color: string | null;
+  status: string;
+  target_count: number | null;
+  target_parts_count: number | null;
+  notes: string | null;
+  tags: string | null;
+  due_date: string | null;
+  priority: string;
+  budget: number | null;
+  bom_items: BOMItemExport[];
+  linked_folders: LinkedFolderExport[];
+}
+
+export interface ProjectImport {
+  name: string;
+  description?: string;
+  color?: string;
+  status?: string;
+  target_count?: number;
+  target_parts_count?: number;
+  notes?: string;
+  tags?: string;
+  due_date?: string;
+  priority?: string;
+  budget?: number;
+  bom_items?: BOMItemExport[];
+  linked_folders?: LinkedFolderExport[];
+}
+
 // Timeline Types
 export interface TimelineEvent {
   event_type: string;
@@ -2682,6 +2729,15 @@ export const api = {
   // Timeline
   getProjectTimeline: (projectId: number, limit = 50) =>
     request<TimelineEvent[]>(`/projects/${projectId}/timeline?limit=${limit}`),
+
+  // Project Export/Import
+  exportProjectJson: (projectId: number) =>
+    request<ProjectExport>(`/projects/${projectId}/export?format=json`),
+  importProject: (data: ProjectImport) =>
+    request<Project>('/projects/import', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 
   // API Keys
   getAPIKeys: () => request<APIKey[]>('/api-keys/'),

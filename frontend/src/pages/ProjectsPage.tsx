@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -16,9 +16,11 @@ import {
   AlertTriangle,
   ChevronRight,
   MoreVertical,
+  Download,
+  Upload,
 } from 'lucide-react';
 import { api } from '../api/client';
-import type { ProjectListItem, ProjectCreate, ProjectUpdate } from '../api/client';
+import type { ProjectListItem, ProjectCreate, ProjectUpdate, ProjectImport } from '../api/client';
 import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { useToast } from '../contexts/ToastContext';
@@ -613,6 +615,94 @@ export function ProjectsPage() {
     },
   });
 
+  const importMutation = useMutation({
+    mutationFn: (data: ProjectImport) => api.importProject(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      showToast('Project imported', 'success');
+    },
+    onError: (error: Error) => {
+      showToast(error.message, 'error');
+    },
+  });
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExportAll = async () => {
+    try {
+      // Export all projects as JSON (metadata only, no files)
+      const allProjects = await api.getProjects();
+      const exports = await Promise.all(
+        allProjects.map(async (p) => {
+          const exported = await api.exportProjectJson(p.id);
+          return exported;
+        })
+      );
+      const blob = new Blob([JSON.stringify(exports, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `bambuddy_projects_${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Projects exported (metadata only)', 'success');
+    } catch (error) {
+      showToast((error as Error).message, 'error');
+    }
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const filename = file.name.toLowerCase();
+
+      if (filename.endsWith('.zip')) {
+        // ZIP file: upload via file endpoint
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch('/api/v1/projects/import/file', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || 'Import failed');
+        }
+
+        queryClient.invalidateQueries({ queryKey: ['projects'] });
+        showToast('Project imported', 'success');
+      } else {
+        // JSON file: parse and handle bulk or single import
+        const text = await file.text();
+        const data = JSON.parse(text);
+
+        // Handle both single project and array of projects
+        const projectsToImport = Array.isArray(data) ? data : [data];
+
+        for (const project of projectsToImport) {
+          await importMutation.mutateAsync(project);
+        }
+
+        if (projectsToImport.length > 1) {
+          showToast(`${projectsToImport.length} projects imported`, 'success');
+        }
+      }
+    } catch (error) {
+      showToast(`Import failed: ${(error as Error).message}`, 'error');
+    }
+
+    // Reset file input
+    e.target.value = '';
+  };
+
   const handleSave = (data: ProjectCreate | ProjectUpdate) => {
     if (editingProject) {
       updateMutation.mutate({ id: editingProject.id, data });
@@ -650,6 +740,15 @@ export function ProjectsPage() {
 
   return (
     <div className="p-4 md:p-8 space-y-8">
+      {/* Hidden file input for import */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json,.zip"
+        onChange={handleFileChange}
+        className="hidden"
+      />
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -663,10 +762,20 @@ export function ProjectsPage() {
             Organize and track your 3D printing projects
           </p>
         </div>
-        <Button onClick={() => setShowModal(true)} className="sm:w-auto w-full">
-          <Plus className="w-4 h-4 mr-2" />
-          New Project
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={handleImportClick} title="Import project">
+            <Upload className="w-4 h-4 mr-2" />
+            Import
+          </Button>
+          <Button variant="secondary" onClick={handleExportAll} title="Export all projects">
+            <Download className="w-4 h-4 mr-2" />
+            Export
+          </Button>
+          <Button onClick={() => setShowModal(true)} className="sm:w-auto w-full">
+            <Plus className="w-4 h-4 mr-2" />
+            New Project
+          </Button>
+        </div>
       </div>
 
       {/* Filter tabs */}

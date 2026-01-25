@@ -100,6 +100,7 @@
 - Auto-detect parts count from 3MF files
 - Color-coded project badges
 - Bulk assign archives via multi-select toolbar
+- Import/Export projects as ZIP (includes files) or JSON
 
 </td>
 <td width="50%" valign="top">

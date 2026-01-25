@@ -5,6 +5,15 @@ All notable changes to Bambuddy will be documented in this file.
 ## [0.1.6] - 2026-01-24
 
 ### New Features
+- **Project Import/Export** - Export and import projects with full file support (Issue #152):
+  - Export single project as ZIP (includes project settings, BOM, and all files from linked library folders)
+  - Export all projects as JSON for metadata-only backup
+  - Import from ZIP (with files) or JSON (metadata only)
+  - Linked folders and files are automatically created on import
+  - Useful for sharing complete project bundles or migrating between instances
+- **BOM Item Editing** - Bill of Materials items are now fully editable:
+  - Edit name, quantity, price, URL, and remarks after creation
+  - Pencil icon on each BOM item to enter edit mode
 - **External Link for Archives** - Add custom external links to archives for non-MakerWorld sources (Issue #151):
   - Link archives to Printables, Thingiverse, or any other URL
   - Globe button opens external link when set, falls back to auto-detected MakerWorld URL
