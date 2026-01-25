@@ -164,6 +164,16 @@ async def update_settings(
     return await get_settings(db)
 
 
+@router.patch("/", response_model=AppSettings)
+@router.patch("", response_model=AppSettings)
+async def patch_settings(
+    settings_update: AppSettingsUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    """Partially update application settings (same as PUT, for REST compatibility)."""
+    return await update_settings(settings_update, db)
+
+
 @router.post("/reset", response_model=AppSettings)
 async def reset_settings(db: AsyncSession = Depends(get_db)):
     """Reset all settings to defaults."""

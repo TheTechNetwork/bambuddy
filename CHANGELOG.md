@@ -34,6 +34,7 @@ All notable changes to Bambuddy will be documented in this file.
   - Bulk delete for multiple files at once
 
 ### Fixes
+- **Settings API PATCH Method** - Added PATCH support to `/api/settings` for Home Assistant rest_command compatibility (Issue #152)
 - **P2S Empty Archive Tiles** - Fixed FTP file search for printers without SD card (Issue #146):
   - Added root folder `/` to search paths when looking for 3MF files
   - Printers without SD card store files in root instead of `/cache`
