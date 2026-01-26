@@ -12,7 +12,6 @@ def _start_error_server(missing_packages: list):
     """Start a minimal HTTP server to display dependency errors in browser."""
     import os
     import signal
-    import threading
     from http.server import BaseHTTPRequestHandler, HTTPServer
 
     packages_html = "".join(f"<li><code>{p}</code></li>" for p in missing_packages)
@@ -81,13 +80,12 @@ def _start_error_server(missing_packages: list):
 
     def shutdown(signum, frame):
         print("\nShutting down error server...")
-        threading.Thread(target=server.shutdown).start()
+        raise SystemExit(0)
 
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGINT, shutdown)
 
     server.serve_forever()
-    raise SystemExit(1)
 
 
 def check_dependencies():
