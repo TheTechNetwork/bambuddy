@@ -1858,8 +1858,10 @@ export function SettingsPage() {
               )}
             </CardContent>
           </Card>
+        </div>
 
-          {/* Prometheus Metrics */}
+        {/* Third Column - Prometheus Metrics */}
+        <div className="flex-1 lg:max-w-md space-y-4">
           <Card>
             <CardHeader>
               <h2 className="text-lg font-semibold text-white flex items-center gap-2">
