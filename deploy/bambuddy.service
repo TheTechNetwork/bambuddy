@@ -6,8 +6,8 @@ After=network.target
 Type=simple
 User=claude
 Group=claude
-WorkingDirectory=/opt/claude/projects/bambuddy
-Environment="PATH=/opt/claude/projects/bambuddy/venv/bin"
+WorkingDirectory=<dir>/bambuddy
+Environment="PATH=<dir/bambuddy/venv/bin"
 
 # Force kill after 10 seconds if graceful shutdown fails
 TimeoutStopSec=10
@@ -18,12 +18,12 @@ ExecStopPost=-/usr/bin/pkill -9 ffmpeg
 
 # Ensure directories exist and have correct permissions before starting
 # The + prefix runs the command as root even though User=claude
-ExecStartPre=+/bin/mkdir -p /opt/claude/projects/bambuddy/logs
-ExecStartPre=+/bin/mkdir -p /opt/claude/projects/bambuddy/archive
-ExecStartPre=+/bin/chown -R claude:claude /opt/claude/projects/bambuddy/logs
-ExecStartPre=+/bin/chown -R claude:claude /opt/claude/projects/bambuddy/archive
+ExecStartPre=+/bin/mkdir -p <dir>/bambuddy/logs
+ExecStartPre=+/bin/mkdir -p <dir>/bambuddy/archive
+ExecStartPre=+/bin/chown -R <user>:<user> <dir>/bambuddy/logs
+ExecStartPre=+/bin/chown -R <user>:<user> <dir>/bambuddy/archive
 
-ExecStart=/opt/claude/projects/bambuddy/venv/bin/uvicorn backend.app.main:app --host 0.0.0.0 --port 8000
+ExecStart=<dir>/bambuddy/venv/bin/uvicorn backend.app.main:app --host 0.0.0.0 --port 8000
 Restart=always
 RestartSec=10
 
