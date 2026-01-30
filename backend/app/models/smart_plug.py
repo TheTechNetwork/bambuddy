@@ -7,7 +7,7 @@ from backend.app.core.database import Base
 
 
 class SmartPlug(Base):
-    """Smart plug for printer power control (Tasmota or Home Assistant)."""
+    """Smart plug for printer power control (Tasmota, Home Assistant, or MQTT)."""
 
     __tablename__ = "smart_plugs"
 
@@ -15,7 +15,7 @@ class SmartPlug(Base):
     name: Mapped[str] = mapped_column(String(100))
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)  # IPv4/IPv6 (required for Tasmota)
 
-    # Plug type: "tasmota" (default) or "homeassistant"
+    # Plug type: "tasmota" (default), "homeassistant", or "mqtt"
     plug_type: Mapped[str] = mapped_column(String(20), default="tasmota")
     # Home Assistant entity ID (e.g., "switch.printer_plug")
     ha_entity_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -23,6 +23,15 @@ class SmartPlug(Base):
     ha_power_entity: Mapped[str | None] = mapped_column(String(100), nullable=True)  # sensor.xxx_power
     ha_energy_today_entity: Mapped[str | None] = mapped_column(String(100), nullable=True)  # sensor.xxx_today
     ha_energy_total_entity: Mapped[str | None] = mapped_column(String(100), nullable=True)  # sensor.xxx_total
+
+    # MQTT plug fields (required when plug_type="mqtt")
+    mqtt_topic: Mapped[str | None] = mapped_column(
+        String(200), nullable=True
+    )  # e.g., "zigbee2mqtt/shelly-working-room"
+    mqtt_power_path: Mapped[str | None] = mapped_column(String(100), nullable=True)  # e.g., "power_l1" or "data.power"
+    mqtt_energy_path: Mapped[str | None] = mapped_column(String(100), nullable=True)  # e.g., "energy_l1"
+    mqtt_state_path: Mapped[str | None] = mapped_column(String(100), nullable=True)  # e.g., "state_l1" for ON/OFF
+    mqtt_multiplier: Mapped[float] = mapped_column(Float, default=1.0)  # Unit conversion (e.g., 0.001 for mW→W)
 
     # Link to printer (1:1)
     printer_id: Mapped[int | None] = mapped_column(

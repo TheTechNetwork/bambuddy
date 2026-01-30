@@ -840,13 +840,19 @@ export interface CloudDevice {
 export interface SmartPlug {
   id: number;
   name: string;
-  plug_type: 'tasmota' | 'homeassistant';
+  plug_type: 'tasmota' | 'homeassistant' | 'mqtt';
   ip_address: string | null;  // Required for Tasmota
   ha_entity_id: string | null;  // Required for Home Assistant (e.g., "switch.printer_plug")
   // Home Assistant energy sensor entities (optional)
   ha_power_entity: string | null;
   ha_energy_today_entity: string | null;
   ha_energy_total_entity: string | null;
+  // MQTT fields (required when plug_type="mqtt")
+  mqtt_topic: string | null;  // e.g., "zigbee2mqtt/shelly-working-room"
+  mqtt_power_path: string | null;  // e.g., "power_l1" or "data.power"
+  mqtt_energy_path: string | null;  // e.g., "energy_l1"
+  mqtt_state_path: string | null;  // e.g., "state_l1" for ON/OFF
+  mqtt_multiplier: number;  // Unit conversion (e.g., 0.001 for mW→W)
   printer_id: number | null;
   enabled: boolean;
   auto_on: boolean;
@@ -877,13 +883,19 @@ export interface SmartPlug {
 
 export interface SmartPlugCreate {
   name: string;
-  plug_type?: 'tasmota' | 'homeassistant';
+  plug_type?: 'tasmota' | 'homeassistant' | 'mqtt';
   ip_address?: string | null;  // Required for Tasmota
   ha_entity_id?: string | null;  // Required for Home Assistant
   // Home Assistant energy sensor entities (optional)
   ha_power_entity?: string | null;
   ha_energy_today_entity?: string | null;
   ha_energy_total_entity?: string | null;
+  // MQTT fields (required when plug_type="mqtt")
+  mqtt_topic?: string | null;
+  mqtt_power_path?: string | null;
+  mqtt_energy_path?: string | null;
+  mqtt_state_path?: string | null;
+  mqtt_multiplier?: number;
   printer_id?: number | null;
   enabled?: boolean;
   auto_on?: boolean;
@@ -907,13 +919,19 @@ export interface SmartPlugCreate {
 
 export interface SmartPlugUpdate {
   name?: string;
-  plug_type?: 'tasmota' | 'homeassistant';
+  plug_type?: 'tasmota' | 'homeassistant' | 'mqtt';
   ip_address?: string | null;
   ha_entity_id?: string | null;
   // Home Assistant energy sensor entities (optional)
   ha_power_entity?: string | null;
   ha_energy_today_entity?: string | null;
   ha_energy_total_entity?: string | null;
+  // MQTT fields
+  mqtt_topic?: string | null;
+  mqtt_power_path?: string | null;
+  mqtt_energy_path?: string | null;
+  mqtt_state_path?: string | null;
+  mqtt_multiplier?: number;
   printer_id?: number | null;
   enabled?: boolean;
   auto_on?: boolean;

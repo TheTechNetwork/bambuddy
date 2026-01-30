@@ -360,6 +360,12 @@ async def export_backup(
                     "ha_power_entity": plug.ha_power_entity,
                     "ha_energy_today_entity": plug.ha_energy_today_entity,
                     "ha_energy_total_entity": plug.ha_energy_total_entity,
+                    # MQTT plug fields
+                    "mqtt_topic": plug.mqtt_topic,
+                    "mqtt_power_path": plug.mqtt_power_path,
+                    "mqtt_energy_path": plug.mqtt_energy_path,
+                    "mqtt_state_path": plug.mqtt_state_path,
+                    "mqtt_multiplier": plug.mqtt_multiplier,
                     "printer_serial": printer_id_to_serial.get(plug.printer_id) if plug.printer_id else None,
                     "enabled": plug.enabled,
                     "auto_on": plug.auto_on,
@@ -1257,12 +1263,17 @@ async def import_backup(
             # Determine plug type (default to tasmota for backwards compatibility)
             plug_type = plug_data.get("plug_type", "tasmota")
 
-            # Find existing plug by IP (Tasmota) or entity_id (Home Assistant)
+            # Find existing plug by IP (Tasmota), entity_id (Home Assistant), or mqtt_topic (MQTT)
             existing = None
+            plug_identifier = None
             if plug_type == "homeassistant" and plug_data.get("ha_entity_id"):
                 result = await db.execute(select(SmartPlug).where(SmartPlug.ha_entity_id == plug_data["ha_entity_id"]))
                 existing = result.scalar_one_or_none()
                 plug_identifier = plug_data["ha_entity_id"]
+            elif plug_type == "mqtt" and plug_data.get("mqtt_topic"):
+                result = await db.execute(select(SmartPlug).where(SmartPlug.mqtt_topic == plug_data["mqtt_topic"]))
+                existing = result.scalar_one_or_none()
+                plug_identifier = plug_data["mqtt_topic"]
             elif plug_data.get("ip_address"):
                 result = await db.execute(select(SmartPlug).where(SmartPlug.ip_address == plug_data["ip_address"]))
                 existing = result.scalar_one_or_none()
@@ -1279,6 +1290,12 @@ async def import_backup(
                     existing.ha_power_entity = plug_data.get("ha_power_entity")
                     existing.ha_energy_today_entity = plug_data.get("ha_energy_today_entity")
                     existing.ha_energy_total_entity = plug_data.get("ha_energy_total_entity")
+                    # MQTT fields
+                    existing.mqtt_topic = plug_data.get("mqtt_topic")
+                    existing.mqtt_power_path = plug_data.get("mqtt_power_path")
+                    existing.mqtt_energy_path = plug_data.get("mqtt_energy_path")
+                    existing.mqtt_state_path = plug_data.get("mqtt_state_path")
+                    existing.mqtt_multiplier = plug_data.get("mqtt_multiplier", 1.0)
                     existing.printer_id = printer_id
                     existing.enabled = plug_data.get("enabled", True)
                     existing.auto_on = plug_data.get("auto_on", True)
@@ -1308,6 +1325,12 @@ async def import_backup(
                     ha_power_entity=plug_data.get("ha_power_entity"),
                     ha_energy_today_entity=plug_data.get("ha_energy_today_entity"),
                     ha_energy_total_entity=plug_data.get("ha_energy_total_entity"),
+                    # MQTT fields
+                    mqtt_topic=plug_data.get("mqtt_topic"),
+                    mqtt_power_path=plug_data.get("mqtt_power_path"),
+                    mqtt_energy_path=plug_data.get("mqtt_energy_path"),
+                    mqtt_state_path=plug_data.get("mqtt_state_path"),
+                    mqtt_multiplier=plug_data.get("mqtt_multiplier", 1.0),
                     printer_id=printer_id,
                     enabled=plug_data.get("enabled", True),
                     auto_on=plug_data.get("auto_on", True),

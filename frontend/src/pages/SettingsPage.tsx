@@ -138,13 +138,17 @@ export function SettingsPage() {
       let totalLifetime = 0;
       let reachableCount = 0;
 
-      for (const { status } of statuses) {
-        if (status?.reachable && status.energy) {
+      for (const { plug, status } of statuses) {
+        // For MQTT plugs, consider reachable if we have power data
+        const hasMqttData = plug.plug_type === 'mqtt' && (status?.energy?.power != null);
+        const isReachable = (status?.reachable || hasMqttData) && status?.energy;
+
+        if (isReachable) {
           reachableCount++;
-          if (status.energy.power != null) totalPower += status.energy.power;
-          if (status.energy.today != null) totalToday += status.energy.today;
-          if (status.energy.yesterday != null) totalYesterday += status.energy.yesterday;
-          if (status.energy.total != null) totalLifetime += status.energy.total;
+          if (status.energy?.power != null) totalPower += status.energy.power;
+          if (status.energy?.today != null) totalToday += status.energy.today;
+          if (status.energy?.yesterday != null) totalYesterday += status.energy.yesterday;
+          if (status.energy?.total != null) totalLifetime += status.energy.total;
         }
       }
 

@@ -760,6 +760,28 @@ async def run_migrations(conn):
     except Exception:
         pass
 
+    # Migration: Add MQTT smart plug fields
+    try:
+        await conn.execute(text("ALTER TABLE smart_plugs ADD COLUMN mqtt_topic VARCHAR(200)"))
+    except Exception:
+        pass
+    try:
+        await conn.execute(text("ALTER TABLE smart_plugs ADD COLUMN mqtt_power_path VARCHAR(100)"))
+    except Exception:
+        pass
+    try:
+        await conn.execute(text("ALTER TABLE smart_plugs ADD COLUMN mqtt_energy_path VARCHAR(100)"))
+    except Exception:
+        pass
+    try:
+        await conn.execute(text("ALTER TABLE smart_plugs ADD COLUMN mqtt_state_path VARCHAR(100)"))
+    except Exception:
+        pass
+    try:
+        await conn.execute(text("ALTER TABLE smart_plugs ADD COLUMN mqtt_multiplier REAL DEFAULT 1.0"))
+    except Exception:
+        pass
+
 
 async def seed_notification_templates():
     """Seed default notification templates if they don't exist."""

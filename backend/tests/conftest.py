@@ -217,6 +217,24 @@ def mock_mqtt_client():
 
 
 @pytest.fixture
+def mock_mqtt_smart_plug_service():
+    """Mock the MQTT smart plug service for MQTT plug tests."""
+    with patch("backend.app.api.routes.smart_plugs.mqtt_relay") as mock:
+        # Create a mock smart_plug_service
+        mock_service = MagicMock()
+        mock_service.is_configured = MagicMock(return_value=True)
+        mock_service.has_broker_settings = MagicMock(return_value=True)
+        mock_service.configure = AsyncMock(return_value=True)
+        mock_service.subscribe = MagicMock()
+        mock_service.unsubscribe = MagicMock()
+        mock_service.get_plug_data = MagicMock(return_value=None)
+        mock_service.is_reachable = MagicMock(return_value=False)
+
+        mock.smart_plug_service = mock_service
+        yield mock
+
+
+@pytest.fixture
 def mock_ftp_client():
     """Mock the FTP client for file transfer tests."""
     with (
@@ -296,6 +314,12 @@ def smart_plug_factory(db_session):
         if plug_type == "homeassistant":
             defaults["ha_entity_id"] = "switch.test"
             defaults["ip_address"] = None
+        elif plug_type == "mqtt":
+            defaults["mqtt_topic"] = kwargs.get("mqtt_topic", "test/topic")
+            defaults["mqtt_power_path"] = kwargs.get("mqtt_power_path", "power")
+            defaults["mqtt_multiplier"] = kwargs.get("mqtt_multiplier", 1.0)
+            defaults["ip_address"] = None
+            defaults["ha_entity_id"] = None
         else:
             defaults["ip_address"] = "192.168.1.100"
             defaults["ha_entity_id"] = None

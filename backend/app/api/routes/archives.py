@@ -514,6 +514,8 @@ async def get_archive_stats(db: AsyncSession = Depends(get_db)):
     if energy_tracking_mode == "total":
         # Total mode: sum up 'total' counter from all smart plugs (lifetime consumption)
         from backend.app.models.smart_plug import SmartPlug
+        from backend.app.services.homeassistant import homeassistant_service
+        from backend.app.services.mqtt_relay import mqtt_relay
         from backend.app.services.tasmota import tasmota_service
 
         plugs_result = await db.execute(select(SmartPlug))
@@ -521,9 +523,19 @@ async def get_archive_stats(db: AsyncSession = Depends(get_db)):
 
         total_energy_kwh = 0.0
         for plug in plugs:
-            energy = await tasmota_service.get_energy(plug)
-            if energy and energy.get("total") is not None:
-                total_energy_kwh += energy["total"]
+            if plug.plug_type == "tasmota":
+                energy = await tasmota_service.get_energy(plug)
+                if energy and energy.get("total") is not None:
+                    total_energy_kwh += energy["total"]
+            elif plug.plug_type == "homeassistant":
+                energy = await homeassistant_service.get_energy(plug)
+                if energy and energy.get("total") is not None:
+                    total_energy_kwh += energy["total"]
+            elif plug.plug_type == "mqtt":
+                # MQTT plugs report "today" energy, not lifetime total
+                mqtt_data = mqtt_relay.smart_plug_service.get_plug_data(plug.id)
+                if mqtt_data and mqtt_data.energy is not None:
+                    total_energy_kwh += mqtt_data.energy
 
         total_energy_kwh = round(total_energy_kwh, 3)
         total_energy_cost = round(total_energy_kwh * energy_cost_per_kwh, 2)
