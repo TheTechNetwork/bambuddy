@@ -54,6 +54,7 @@
 - Re-print to any connected printer with AMS mapping (auto-match or manual slot selection, multi-plate support)
 - Plate thumbnail browsing for multi-plate archives (hover to navigate between plates)
 - Archive comparison (side-by-side diff)
+- Tag management (rename/delete across all archives)
 
 ### 📊 Monitoring & Control
 - Real-time printer status via WebSocket

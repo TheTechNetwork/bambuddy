@@ -85,6 +85,13 @@ All notable changes to Bambuddy will be documented in this file.
   - Link archives to Printables, Thingiverse, or any other URL
   - Globe button opens external link when set, falls back to auto-detected MakerWorld URL
   - Edit via archive edit modal
+- **Tag Management** - Centralized tag management for print archives (Issue #183):
+  - View all tags with usage counts in a dedicated modal
+  - Rename tags across all archives with one action
+  - Delete tags from all archives with confirmation
+  - Search and filter tags by name
+  - Sort by usage count or alphabetically
+  - Access via gear icon next to tag filter dropdown on Archives page
   - Included in backup/restore
 - **External Network Camera Support** - Add external cameras (MJPEG, RTSP, HTTP snapshot) to replace built-in printer cameras (Issue #143):
   - Configure per-printer external camera URL and type in Settings → Camera

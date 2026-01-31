@@ -335,6 +335,11 @@ export interface ArchiveStats {
   total_energy_cost: number;
 }
 
+export interface TagInfo {
+  name: string;
+  count: number;
+}
+
 export interface FailureAnalysis {
   period_days: number;
   total_prints: number;
@@ -1934,6 +1939,17 @@ export const api = {
   deleteArchive: (id: number) =>
     request<void>(`/archives/${id}`, { method: 'DELETE' }),
   getArchiveStats: () => request<ArchiveStats>('/archives/stats'),
+  // Tag management
+  getTags: () => request<TagInfo[]>('/archives/tags'),
+  renameTag: (oldName: string, newName: string) =>
+    request<{ affected: number }>(`/archives/tags/${encodeURIComponent(oldName)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ new_name: newName }),
+    }),
+  deleteTag: (name: string) =>
+    request<{ affected: number }>(`/archives/tags/${encodeURIComponent(name)}`, {
+      method: 'DELETE',
+    }),
   recalculateCosts: () =>
     request<{ message: string; updated: number }>('/archives/recalculate-costs', { method: 'POST' }),
   getFailureAnalysis: (options?: { days?: number; printerId?: number; projectId?: number }) => {
