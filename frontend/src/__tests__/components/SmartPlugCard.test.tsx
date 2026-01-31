@@ -346,7 +346,6 @@ describe('SmartPlugCard', () => {
     });
 
     it('shows Settings instead of Automation Settings for MQTT plug', async () => {
-      const user = userEvent.setup();
       const plug = createMockPlug({
         plug_type: 'mqtt',
         ip_address: null,
