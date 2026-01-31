@@ -248,9 +248,10 @@ _notified_hms_errors: dict[int, set[str]] = {}
 
 
 async def _get_plug_energy(plug, db) -> dict | None:
-    """Get energy from plug regardless of type (Tasmota or Home Assistant).
+    """Get energy from plug regardless of type (Tasmota, Home Assistant, or MQTT).
 
     For HA plugs, configures the service with current settings from DB.
+    For MQTT plugs, returns data from the subscription service.
     """
     if plug.plug_type == "homeassistant":
         from backend.app.api.routes.settings import get_setting
@@ -259,6 +260,17 @@ async def _get_plug_energy(plug, db) -> dict | None:
         ha_token = await get_setting(db, "ha_token") or ""
         homeassistant_service.configure(ha_url, ha_token)
         return await homeassistant_service.get_energy(plug)
+    elif plug.plug_type == "mqtt":
+        # MQTT plugs report "today" energy, not lifetime total
+        # For per-print tracking, we use "today" as the counter (resets at midnight)
+        mqtt_data = mqtt_relay.smart_plug_service.get_plug_data(plug.id)
+        if mqtt_data:
+            return {
+                "power": mqtt_data.power,
+                "today": mqtt_data.energy,
+                "total": mqtt_data.energy,  # Use today as total for per-print calculations
+            }
+        return None
     else:
         return await tasmota_service.get_energy(plug)
 
@@ -1988,6 +2000,34 @@ async def on_print_complete(printer_id: int, data: dict):
                 except Exception:
                     pass  # Don't fail if MQTT fails
 
+                # Check if queue is now empty and send notification
+                try:
+                    from sqlalchemy import func
+
+                    # Count remaining pending items
+                    count_result = await db.execute(
+                        select(func.count(PrintQueueItem.id)).where(PrintQueueItem.status == "pending")
+                    )
+                    pending_count = count_result.scalar() or 0
+
+                    if pending_count == 0:
+                        # Count how many completed today (rough approximation)
+                        today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+                        completed_result = await db.execute(
+                            select(func.count(PrintQueueItem.id)).where(
+                                PrintQueueItem.status.in_(["completed", "failed", "skipped"]),
+                                PrintQueueItem.completed_at >= today_start,
+                            )
+                        )
+                        completed_count = completed_result.scalar() or 1
+
+                        await notification_service.on_queue_completed(
+                            completed_count=completed_count,
+                            db=db,
+                        )
+                except Exception:
+                    pass  # Don't fail if notification fails
+
                 # Handle auto_off_after - power off printer if requested (after cooldown)
                 if queue_item.auto_off_after:
                     result = await db.execute(select(SmartPlug).where(SmartPlug.printer_id == printer_id))
@@ -2366,6 +2406,27 @@ async def lifespan(app: FastAPI):
             "mqtt_use_tls": (await get_setting(db, "mqtt_use_tls") or "false") == "true",
         }
         await mqtt_relay.configure(mqtt_settings)
+
+        # Restore MQTT smart plug subscriptions
+        if mqtt_settings.get("mqtt_enabled"):
+            from sqlalchemy import select
+
+            from backend.app.models.smart_plug import SmartPlug
+
+            result = await db.execute(select(SmartPlug).where(SmartPlug.plug_type == "mqtt"))
+            mqtt_plugs = result.scalars().all()
+            for plug in mqtt_plugs:
+                if plug.mqtt_topic:
+                    mqtt_relay.smart_plug_service.subscribe(
+                        plug_id=plug.id,
+                        topic=plug.mqtt_topic,
+                        power_path=plug.mqtt_power_path,
+                        energy_path=plug.mqtt_energy_path,
+                        state_path=plug.mqtt_state_path,
+                        multiplier=plug.mqtt_multiplier or 1.0,
+                    )
+            if mqtt_plugs:
+                logging.info(f"Restored {len(mqtt_plugs)} MQTT smart plug subscriptions")
 
     # Connect to all active printers
     async with async_session() as db:

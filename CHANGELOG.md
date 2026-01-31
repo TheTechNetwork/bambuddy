@@ -13,6 +13,17 @@ All notable changes to Bambuddy will be documented in this file.
   - No authentication required - designed for OBS browser source embedding
   - Gradient overlay at bottom for readable text over camera feed
   - Auto-reconnect on camera stream errors
+- **MQTT Smart Plug Support** - Add smart plugs that subscribe to MQTT topics for energy monitoring (Issue #173):
+  - New "MQTT" plug type alongside Tasmota and Home Assistant
+  - Subscribe to any MQTT topic (Zigbee2MQTT, Shelly, Tasmota discovery, etc.)
+  - **Separate topics per data type**: Configure different MQTT topics for power, energy, and state
+  - Configurable JSON paths for data extraction (e.g., `power_l1`, `data.power`)
+  - **Separate multipliers**: Individual multiplier for power and energy (e.g., mW→W, Wh→kWh)
+  - **Custom ON value**: Configure what value means "ON" for state (e.g., "ON", "true", "1")
+  - Monitor-only: displays power/energy data without control capabilities
+  - Reuses existing MQTT broker settings from Settings → Network
+  - Energy data included in statistics and per-print tracking
+  - Full backup/restore support for MQTT plug configurations
 - **Disable Printer Firmware Checks** - New toggle in Settings → General → Updates to disable printer firmware update checks:
   - Prevents Bambuddy from checking Bambu Lab servers for firmware updates
   - Useful for users who prefer to manage firmware manually or have network restrictions

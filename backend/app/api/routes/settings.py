@@ -311,6 +311,13 @@ async def export_backup(
                     "on_ams_ht_humidity_high": getattr(p, "on_ams_ht_humidity_high", False),
                     "on_ams_ht_temperature_high": getattr(p, "on_ams_ht_temperature_high", False),
                     "on_plate_not_empty": getattr(p, "on_plate_not_empty", True),
+                    "on_queue_job_added": getattr(p, "on_queue_job_added", False),
+                    "on_queue_job_assigned": getattr(p, "on_queue_job_assigned", False),
+                    "on_queue_job_started": getattr(p, "on_queue_job_started", False),
+                    "on_queue_job_waiting": getattr(p, "on_queue_job_waiting", True),
+                    "on_queue_job_skipped": getattr(p, "on_queue_job_skipped", True),
+                    "on_queue_job_failed": getattr(p, "on_queue_job_failed", True),
+                    "on_queue_completed": getattr(p, "on_queue_completed", False),
                     "quiet_hours_enabled": p.quiet_hours_enabled,
                     "quiet_hours_start": p.quiet_hours_start,
                     "quiet_hours_end": p.quiet_hours_end,
@@ -360,6 +367,21 @@ async def export_backup(
                     "ha_power_entity": plug.ha_power_entity,
                     "ha_energy_today_entity": plug.ha_energy_today_entity,
                     "ha_energy_total_entity": plug.ha_energy_total_entity,
+                    # MQTT plug fields (legacy)
+                    "mqtt_topic": plug.mqtt_topic,
+                    "mqtt_multiplier": plug.mqtt_multiplier,
+                    # MQTT power fields
+                    "mqtt_power_topic": plug.mqtt_power_topic,
+                    "mqtt_power_path": plug.mqtt_power_path,
+                    "mqtt_power_multiplier": plug.mqtt_power_multiplier,
+                    # MQTT energy fields
+                    "mqtt_energy_topic": plug.mqtt_energy_topic,
+                    "mqtt_energy_path": plug.mqtt_energy_path,
+                    "mqtt_energy_multiplier": plug.mqtt_energy_multiplier,
+                    # MQTT state fields
+                    "mqtt_state_topic": plug.mqtt_state_topic,
+                    "mqtt_state_path": plug.mqtt_state_path,
+                    "mqtt_state_on_value": plug.mqtt_state_on_value,
                     "printer_serial": printer_id_to_serial.get(plug.printer_id) if plug.printer_id else None,
                     "enabled": plug.enabled,
                     "auto_on": plug.auto_on,
@@ -376,6 +398,7 @@ async def export_backup(
                     "schedule_on_time": plug.schedule_on_time,
                     "schedule_off_time": plug.schedule_off_time,
                     "show_in_switchbar": plug.show_in_switchbar,
+                    "show_on_printer_card": plug.show_on_printer_card,
                 }
             )
         backup["included"].append("smart_plugs")
@@ -1176,6 +1199,13 @@ async def import_backup(
                     existing.on_ams_ht_humidity_high = provider_data.get("on_ams_ht_humidity_high", False)
                     existing.on_ams_ht_temperature_high = provider_data.get("on_ams_ht_temperature_high", False)
                     existing.on_plate_not_empty = provider_data.get("on_plate_not_empty", True)
+                    existing.on_queue_job_added = provider_data.get("on_queue_job_added", False)
+                    existing.on_queue_job_assigned = provider_data.get("on_queue_job_assigned", False)
+                    existing.on_queue_job_started = provider_data.get("on_queue_job_started", False)
+                    existing.on_queue_job_waiting = provider_data.get("on_queue_job_waiting", True)
+                    existing.on_queue_job_skipped = provider_data.get("on_queue_job_skipped", True)
+                    existing.on_queue_job_failed = provider_data.get("on_queue_job_failed", True)
+                    existing.on_queue_completed = provider_data.get("on_queue_completed", False)
                     existing.quiet_hours_enabled = provider_data.get("quiet_hours_enabled", False)
                     existing.quiet_hours_start = provider_data.get("quiet_hours_start")
                     existing.quiet_hours_end = provider_data.get("quiet_hours_end")
@@ -1206,6 +1236,13 @@ async def import_backup(
                     on_ams_ht_humidity_high=provider_data.get("on_ams_ht_humidity_high", False),
                     on_ams_ht_temperature_high=provider_data.get("on_ams_ht_temperature_high", False),
                     on_plate_not_empty=provider_data.get("on_plate_not_empty", True),
+                    on_queue_job_added=provider_data.get("on_queue_job_added", False),
+                    on_queue_job_assigned=provider_data.get("on_queue_job_assigned", False),
+                    on_queue_job_started=provider_data.get("on_queue_job_started", False),
+                    on_queue_job_waiting=provider_data.get("on_queue_job_waiting", True),
+                    on_queue_job_skipped=provider_data.get("on_queue_job_skipped", True),
+                    on_queue_job_failed=provider_data.get("on_queue_job_failed", True),
+                    on_queue_completed=provider_data.get("on_queue_completed", False),
                     quiet_hours_enabled=provider_data.get("quiet_hours_enabled", False),
                     quiet_hours_start=provider_data.get("quiet_hours_start"),
                     quiet_hours_end=provider_data.get("quiet_hours_end"),
@@ -1257,12 +1294,23 @@ async def import_backup(
             # Determine plug type (default to tasmota for backwards compatibility)
             plug_type = plug_data.get("plug_type", "tasmota")
 
-            # Find existing plug by IP (Tasmota) or entity_id (Home Assistant)
+            # Find existing plug by IP (Tasmota), entity_id (Home Assistant), or mqtt_topic (MQTT)
             existing = None
+            plug_identifier = None
             if plug_type == "homeassistant" and plug_data.get("ha_entity_id"):
                 result = await db.execute(select(SmartPlug).where(SmartPlug.ha_entity_id == plug_data["ha_entity_id"]))
                 existing = result.scalar_one_or_none()
                 plug_identifier = plug_data["ha_entity_id"]
+            elif plug_type == "mqtt" and (plug_data.get("mqtt_power_topic") or plug_data.get("mqtt_topic")):
+                # Check by mqtt_power_topic first (new format), fall back to mqtt_topic (legacy)
+                power_topic = plug_data.get("mqtt_power_topic") or plug_data.get("mqtt_topic")
+                result = await db.execute(
+                    select(SmartPlug).where(
+                        (SmartPlug.mqtt_power_topic == power_topic) | (SmartPlug.mqtt_topic == power_topic)
+                    )
+                )
+                existing = result.scalar_one_or_none()
+                plug_identifier = power_topic
             elif plug_data.get("ip_address"):
                 result = await db.execute(select(SmartPlug).where(SmartPlug.ip_address == plug_data["ip_address"]))
                 existing = result.scalar_one_or_none()
@@ -1279,6 +1327,21 @@ async def import_backup(
                     existing.ha_power_entity = plug_data.get("ha_power_entity")
                     existing.ha_energy_today_entity = plug_data.get("ha_energy_today_entity")
                     existing.ha_energy_total_entity = plug_data.get("ha_energy_total_entity")
+                    # MQTT fields (legacy)
+                    existing.mqtt_topic = plug_data.get("mqtt_topic")
+                    existing.mqtt_multiplier = plug_data.get("mqtt_multiplier", 1.0)
+                    # MQTT power fields
+                    existing.mqtt_power_topic = plug_data.get("mqtt_power_topic")
+                    existing.mqtt_power_path = plug_data.get("mqtt_power_path")
+                    existing.mqtt_power_multiplier = plug_data.get("mqtt_power_multiplier", 1.0)
+                    # MQTT energy fields
+                    existing.mqtt_energy_topic = plug_data.get("mqtt_energy_topic")
+                    existing.mqtt_energy_path = plug_data.get("mqtt_energy_path")
+                    existing.mqtt_energy_multiplier = plug_data.get("mqtt_energy_multiplier", 1.0)
+                    # MQTT state fields
+                    existing.mqtt_state_topic = plug_data.get("mqtt_state_topic")
+                    existing.mqtt_state_path = plug_data.get("mqtt_state_path")
+                    existing.mqtt_state_on_value = plug_data.get("mqtt_state_on_value")
                     existing.printer_id = printer_id
                     existing.enabled = plug_data.get("enabled", True)
                     existing.auto_on = plug_data.get("auto_on", True)
@@ -1295,6 +1358,7 @@ async def import_backup(
                     existing.schedule_on_time = plug_data.get("schedule_on_time")
                     existing.schedule_off_time = plug_data.get("schedule_off_time")
                     existing.show_in_switchbar = plug_data.get("show_in_switchbar", False)
+                    existing.show_on_printer_card = plug_data.get("show_on_printer_card", True)
                     restored["smart_plugs"] += 1
                 else:
                     skipped["smart_plugs"] += 1
@@ -1308,6 +1372,21 @@ async def import_backup(
                     ha_power_entity=plug_data.get("ha_power_entity"),
                     ha_energy_today_entity=plug_data.get("ha_energy_today_entity"),
                     ha_energy_total_entity=plug_data.get("ha_energy_total_entity"),
+                    # MQTT fields (legacy)
+                    mqtt_topic=plug_data.get("mqtt_topic"),
+                    mqtt_multiplier=plug_data.get("mqtt_multiplier", 1.0),
+                    # MQTT power fields
+                    mqtt_power_topic=plug_data.get("mqtt_power_topic"),
+                    mqtt_power_path=plug_data.get("mqtt_power_path"),
+                    mqtt_power_multiplier=plug_data.get("mqtt_power_multiplier", 1.0),
+                    # MQTT energy fields
+                    mqtt_energy_topic=plug_data.get("mqtt_energy_topic"),
+                    mqtt_energy_path=plug_data.get("mqtt_energy_path"),
+                    mqtt_energy_multiplier=plug_data.get("mqtt_energy_multiplier", 1.0),
+                    # MQTT state fields
+                    mqtt_state_topic=plug_data.get("mqtt_state_topic"),
+                    mqtt_state_path=plug_data.get("mqtt_state_path"),
+                    mqtt_state_on_value=plug_data.get("mqtt_state_on_value"),
                     printer_id=printer_id,
                     enabled=plug_data.get("enabled", True),
                     auto_on=plug_data.get("auto_on", True),
@@ -1324,6 +1403,7 @@ async def import_backup(
                     schedule_on_time=plug_data.get("schedule_on_time"),
                     schedule_off_time=plug_data.get("schedule_off_time"),
                     show_in_switchbar=plug_data.get("show_in_switchbar", False),
+                    show_on_printer_card=plug_data.get("show_on_printer_card", True),
                 )
                 db.add(plug)
                 restored["smart_plugs"] += 1
