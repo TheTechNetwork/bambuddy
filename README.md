@@ -155,9 +155,10 @@
 
 ### 🔒 Optional Authentication
 - Enable/disable authentication any time
-- Role-based access (Admin/User)
+- Group-based permissions (50+ granular permissions)
+- Default groups: Administrators, Operators, Viewers
 - JWT tokens with secure password hashing
-- User management (create, edit, delete)
+- User management (create, edit, delete, groups)
 
 </td>
 </tr>

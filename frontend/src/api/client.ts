@@ -50,6 +50,12 @@ async function request<T>(
     throw new Error(message);
   }
 
+  // Handle empty responses (204 No Content, etc.)
+  const contentLength = response.headers.get('content-length');
+  if (response.status === 204 || contentLength === '0') {
+    return undefined as T;
+  }
+
   return await response.json();
 }
 
@@ -1713,6 +1719,82 @@ export interface ExternalLinkUpdate {
   icon?: string;
 }
 
+// Permission type - all available permissions
+export type Permission =
+  | 'printers:read' | 'printers:create' | 'printers:update' | 'printers:delete' | 'printers:control' | 'printers:files'
+  | 'archives:read' | 'archives:create' | 'archives:update' | 'archives:delete' | 'archives:reprint'
+  | 'queue:read' | 'queue:create' | 'queue:update' | 'queue:delete' | 'queue:reorder'
+  | 'library:read' | 'library:upload' | 'library:update' | 'library:delete'
+  | 'projects:read' | 'projects:create' | 'projects:update' | 'projects:delete'
+  | 'filaments:read' | 'filaments:create' | 'filaments:update' | 'filaments:delete'
+  | 'smart_plugs:read' | 'smart_plugs:create' | 'smart_plugs:update' | 'smart_plugs:delete' | 'smart_plugs:control'
+  | 'camera:view'
+  | 'maintenance:read' | 'maintenance:create' | 'maintenance:update' | 'maintenance:delete'
+  | 'kprofiles:read' | 'kprofiles:create' | 'kprofiles:update' | 'kprofiles:delete'
+  | 'notifications:read' | 'notifications:create' | 'notifications:update' | 'notifications:delete'
+  | 'notification_templates:read' | 'notification_templates:update'
+  | 'external_links:read' | 'external_links:create' | 'external_links:update' | 'external_links:delete'
+  | 'discovery:scan'
+  | 'firmware:read' | 'firmware:update'
+  | 'ams_history:read'
+  | 'stats:read'
+  | 'system:read'
+  | 'settings:read' | 'settings:update' | 'settings:backup' | 'settings:restore'
+  | 'github:backup' | 'github:restore'
+  | 'cloud:auth'
+  | 'api_keys:read' | 'api_keys:create' | 'api_keys:update' | 'api_keys:delete'
+  | 'users:read' | 'users:create' | 'users:update' | 'users:delete'
+  | 'groups:read' | 'groups:create' | 'groups:update' | 'groups:delete'
+  | 'websocket:connect';
+
+// Group types
+export interface GroupBrief {
+  id: number;
+  name: string;
+}
+
+export interface Group {
+  id: number;
+  name: string;
+  description: string | null;
+  permissions: Permission[];
+  is_system: boolean;
+  user_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GroupDetail extends Group {
+  users: Array<{ id: number; username: string; is_active: boolean }>;
+}
+
+export interface GroupCreate {
+  name: string;
+  description?: string;
+  permissions: Permission[];
+}
+
+export interface GroupUpdate {
+  name?: string;
+  description?: string;
+  permissions?: Permission[];
+}
+
+export interface PermissionInfo {
+  value: Permission;
+  label: string;
+}
+
+export interface PermissionCategory {
+  name: string;
+  permissions: PermissionInfo[];
+}
+
+export interface PermissionsListResponse {
+  categories: PermissionCategory[];
+  all_permissions: Permission[];
+}
+
 // Auth types
 export interface LoginRequest {
   username: string;
@@ -1728,8 +1810,11 @@ export interface LoginResponse {
 export interface UserResponse {
   id: number;
   username: string;
-  role: string;
+  role: string;  // Deprecated, kept for backward compatibility
   is_active: boolean;
+  is_admin: boolean;  // Computed from role and group membership
+  groups: GroupBrief[];
+  permissions: Permission[];  // All permissions from groups
   created_at: string;
 }
 
@@ -1737,6 +1822,7 @@ export interface UserCreate {
   username: string;
   password: string;
   role: string;
+  group_ids?: number[];
 }
 
 export interface UserUpdate {
@@ -1744,6 +1830,7 @@ export interface UserUpdate {
   password?: string;
   role?: string;
   is_active?: boolean;
+  group_ids?: number[];
 }
 
 export interface SetupRequest {
@@ -1786,7 +1873,7 @@ export const api = {
       method: 'POST',
     }),
 
-  // Users (admin only)
+  // Users
   getUsers: () => request<UserResponse[]>('/users/'),
   getUser: (id: number) => request<UserResponse>(`/users/${id}`),
   createUser: (data: UserCreate) =>
@@ -1801,6 +1888,38 @@ export const api = {
     }),
   deleteUser: (id: number) =>
     request<void>(`/users/${id}`, {
+      method: 'DELETE',
+    }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<{ message: string }>('/users/me/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    }),
+
+  // Groups
+  getPermissions: () => request<PermissionsListResponse>('/groups/permissions'),
+  getGroups: () => request<Group[]>('/groups/'),
+  getGroup: (id: number) => request<GroupDetail>(`/groups/${id}`),
+  createGroup: (data: GroupCreate) =>
+    request<Group>('/groups/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateGroup: (id: number, data: GroupUpdate) =>
+    request<Group>(`/groups/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  deleteGroup: (id: number) =>
+    request<void>(`/groups/${id}`, {
+      method: 'DELETE',
+    }),
+  addUserToGroup: (groupId: number, userId: number) =>
+    request<void>(`/groups/${groupId}/users/${userId}`, {
+      method: 'POST',
+    }),
+  removeUserFromGroup: (groupId: number, userId: number) =>
+    request<void>(`/groups/${groupId}/users/${userId}`, {
       method: 'DELETE',
     }),
 

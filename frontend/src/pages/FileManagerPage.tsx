@@ -45,12 +45,14 @@ import type {
   LibraryFolderUpdate,
   AppSettings,
   Archive,
+  Permission,
 } from '../api/client';
 import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { PrintModal } from '../components/PrintModal';
 import { useToast } from '../contexts/ToastContext';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { useAuth } from '../contexts/AuthContext';
 
 type SortField = 'name' | 'date' | 'size' | 'type' | 'prints';
 type SortDirection = 'asc' | 'desc';
@@ -724,9 +726,10 @@ interface FolderTreeItemProps {
   onRename: (folder: LibraryFolderTree) => void;
   depth?: number;
   wrapNames?: boolean;
+  hasPermission: (permission: Permission) => boolean;
 }
 
-function FolderTreeItem({ folder, selectedFolderId, onSelect, onDelete, onLink, onRename, depth = 0, wrapNames = false }: FolderTreeItemProps) {
+function FolderTreeItem({ folder, selectedFolderId, onSelect, onDelete, onLink, onRename, depth = 0, wrapNames = false, hasPermission }: FolderTreeItemProps) {
   const [expanded, setExpanded] = useState(true);
   const [showActions, setShowActions] = useState(false);
   const hasChildren = folder.children.length > 0;
@@ -799,22 +802,34 @@ function FolderTreeItem({ folder, selectedFolderId, onSelect, onDelete, onLink, 
                 <div className="fixed inset-0 z-10" onClick={() => setShowActions(false)} />
                 <div className="absolute right-0 top-full mt-1 z-20 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-xl py-1 min-w-[120px]">
                 <button
-                  className="w-full px-3 py-1.5 text-left text-sm text-white hover:bg-bambu-dark flex items-center gap-2"
-                  onClick={() => { onRename(folder); setShowActions(false); }}
+                  className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
+                    hasPermission('library:update') ? 'text-white hover:bg-bambu-dark' : 'text-bambu-gray cursor-not-allowed'
+                  }`}
+                  onClick={() => { if (hasPermission('library:update')) { onRename(folder); setShowActions(false); } }}
+                  disabled={!hasPermission('library:update')}
+                  title={!hasPermission('library:update') ? 'You do not have permission to rename folders' : undefined}
                 >
                   <Pencil className="w-3.5 h-3.5" />
                   Rename
                 </button>
                 <button
-                  className="w-full px-3 py-1.5 text-left text-sm text-white hover:bg-bambu-dark flex items-center gap-2"
-                  onClick={() => { onLink(folder); setShowActions(false); }}
+                  className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
+                    hasPermission('library:update') ? 'text-white hover:bg-bambu-dark' : 'text-bambu-gray cursor-not-allowed'
+                  }`}
+                  onClick={() => { if (hasPermission('library:update')) { onLink(folder); setShowActions(false); } }}
+                  disabled={!hasPermission('library:update')}
+                  title={!hasPermission('library:update') ? 'You do not have permission to link folders' : undefined}
                 >
                   <Link2 className="w-3.5 h-3.5" />
                   {isLinked ? 'Change Link...' : 'Link to...'}
                 </button>
                 <button
-                  className="w-full px-3 py-1.5 text-left text-sm text-red-400 hover:bg-bambu-dark flex items-center gap-2"
-                  onClick={() => { onDelete(folder.id); setShowActions(false); }}
+                  className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
+                    hasPermission('library:delete') ? 'text-red-400 hover:bg-bambu-dark' : 'text-bambu-gray cursor-not-allowed'
+                  }`}
+                  onClick={() => { if (hasPermission('library:delete')) { onDelete(folder.id); setShowActions(false); } }}
+                  disabled={!hasPermission('library:delete')}
+                  title={!hasPermission('library:delete') ? 'You do not have permission to delete folders' : undefined}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   Delete
@@ -838,6 +853,7 @@ function FolderTreeItem({ folder, selectedFolderId, onSelect, onDelete, onLink, 
               onRename={onRename}
               depth={depth + 1}
               wrapNames={wrapNames}
+              hasPermission={hasPermission}
             />
           ))}
         </div>
@@ -865,9 +881,10 @@ interface FileCardProps {
   onRename?: (file: LibraryFileListItem) => void;
   onGenerateThumbnail?: (file: LibraryFileListItem) => void;
   thumbnailVersion?: number;
+  hasPermission: (permission: Permission) => boolean;
 }
 
-function FileCard({ file, isSelected, isMobile, onSelect, onDelete, onDownload, onAddToQueue, onPrint, onRename, onGenerateThumbnail, thumbnailVersion }: FileCardProps) {
+function FileCard({ file, isSelected, isMobile, onSelect, onDelete, onDownload, onAddToQueue, onPrint, onRename, onGenerateThumbnail, thumbnailVersion, hasPermission }: FileCardProps) {
   const [showActions, setShowActions] = useState(false);
 
   return (
@@ -936,8 +953,12 @@ function FileCard({ file, isSelected, isMobile, onSelect, onDelete, onDownload, 
             <div className="absolute right-0 bottom-8 z-20 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-xl py-1 min-w-[140px]">
               {onPrint && isSlicedFilename(file.filename) && (
                 <button
-                  className="w-full px-3 py-1.5 text-left text-sm text-bambu-green hover:bg-bambu-dark flex items-center gap-2"
-                  onClick={() => { onPrint(file); setShowActions(false); }}
+                  className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
+                    hasPermission('printers:control') ? 'text-bambu-green hover:bg-bambu-dark' : 'text-bambu-gray cursor-not-allowed'
+                  }`}
+                  onClick={() => { if (hasPermission('printers:control')) { onPrint(file); setShowActions(false); } }}
+                  disabled={!hasPermission('printers:control')}
+                  title={!hasPermission('printers:control') ? 'You do not have permission to print' : undefined}
                 >
                   <Printer className="w-3.5 h-3.5" />
                   Print
@@ -945,24 +966,36 @@ function FileCard({ file, isSelected, isMobile, onSelect, onDelete, onDownload, 
               )}
               {onAddToQueue && isSlicedFilename(file.filename) && (
                 <button
-                  className="w-full px-3 py-1.5 text-left text-sm text-white hover:bg-bambu-dark flex items-center gap-2"
-                  onClick={() => { onAddToQueue(file.id); setShowActions(false); }}
+                  className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
+                    hasPermission('queue:create') ? 'text-white hover:bg-bambu-dark' : 'text-bambu-gray cursor-not-allowed'
+                  }`}
+                  onClick={() => { if (hasPermission('queue:create')) { onAddToQueue(file.id); setShowActions(false); } }}
+                  disabled={!hasPermission('queue:create')}
+                  title={!hasPermission('queue:create') ? 'You do not have permission to add to queue' : undefined}
                 >
                   <Clock className="w-3.5 h-3.5" />
                   Add to Queue
                 </button>
               )}
               <button
-                className="w-full px-3 py-1.5 text-left text-sm text-white hover:bg-bambu-dark flex items-center gap-2"
-                onClick={() => { onDownload(file.id); setShowActions(false); }}
+                className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
+                  hasPermission('library:read') ? 'text-white hover:bg-bambu-dark' : 'text-bambu-gray cursor-not-allowed'
+                }`}
+                onClick={() => { if (hasPermission('library:read')) { onDownload(file.id); setShowActions(false); } }}
+                disabled={!hasPermission('library:read')}
+                title={!hasPermission('library:read') ? 'You do not have permission to download files' : undefined}
               >
                 <Download className="w-3.5 h-3.5" />
                 Download
               </button>
               {onRename && (
                 <button
-                  className="w-full px-3 py-1.5 text-left text-sm text-white hover:bg-bambu-dark flex items-center gap-2"
-                  onClick={() => { onRename(file); setShowActions(false); }}
+                  className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
+                    hasPermission('library:update') ? 'text-white hover:bg-bambu-dark' : 'text-bambu-gray cursor-not-allowed'
+                  }`}
+                  onClick={() => { if (hasPermission('library:update')) { onRename(file); setShowActions(false); } }}
+                  disabled={!hasPermission('library:update')}
+                  title={!hasPermission('library:update') ? 'You do not have permission to rename files' : undefined}
                 >
                   <Pencil className="w-3.5 h-3.5" />
                   Rename
@@ -970,16 +1003,24 @@ function FileCard({ file, isSelected, isMobile, onSelect, onDelete, onDownload, 
               )}
               {onGenerateThumbnail && file.file_type === 'stl' && (
                 <button
-                  className="w-full px-3 py-1.5 text-left text-sm text-white hover:bg-bambu-dark flex items-center gap-2"
-                  onClick={() => { onGenerateThumbnail(file); setShowActions(false); }}
+                  className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
+                    hasPermission('library:update') ? 'text-white hover:bg-bambu-dark' : 'text-bambu-gray cursor-not-allowed'
+                  }`}
+                  onClick={() => { if (hasPermission('library:update')) { onGenerateThumbnail(file); setShowActions(false); } }}
+                  disabled={!hasPermission('library:update')}
+                  title={!hasPermission('library:update') ? 'You do not have permission to generate thumbnails' : undefined}
                 >
                   <Image className="w-3.5 h-3.5" />
                   Generate Thumbnail
                 </button>
               )}
               <button
-                className="w-full px-3 py-1.5 text-left text-sm text-red-400 hover:bg-bambu-dark flex items-center gap-2"
-                onClick={() => { onDelete(file.id); setShowActions(false); }}
+                className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
+                  hasPermission('library:delete') ? 'text-red-400 hover:bg-bambu-dark' : 'text-bambu-gray cursor-not-allowed'
+                }`}
+                onClick={() => { if (hasPermission('library:delete')) { onDelete(file.id); setShowActions(false); } }}
+                disabled={!hasPermission('library:delete')}
+                title={!hasPermission('library:delete') ? 'You do not have permission to delete files' : undefined}
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 Delete
@@ -1004,6 +1045,7 @@ function FileCard({ file, isSelected, isMobile, onSelect, onDelete, onDownload, 
 export function FileManagerPage() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
+  const { hasPermission } = useAuth();
   const [searchParams] = useSearchParams();
 
   // Read folder ID from URL query parameter
@@ -1470,8 +1512,8 @@ export function FileManagerPage() {
           <Button
             variant="secondary"
             onClick={() => batchThumbnailMutation.mutate()}
-            disabled={batchThumbnailMutation.isPending}
-            title="Generate thumbnails for STL files missing them"
+            disabled={batchThumbnailMutation.isPending || !hasPermission('library:update')}
+            title={!hasPermission('library:update') ? 'You do not have permission to generate thumbnails' : 'Generate thumbnails for STL files missing them'}
           >
             {batchThumbnailMutation.isPending ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -1480,11 +1522,20 @@ export function FileManagerPage() {
             )}
             Generate Thumbnails
           </Button>
-          <Button variant="secondary" onClick={() => setShowNewFolderModal(true)}>
+          <Button
+            variant="secondary"
+            onClick={() => setShowNewFolderModal(true)}
+            disabled={!hasPermission('library:upload')}
+            title={!hasPermission('library:upload') ? 'You do not have permission to create folders' : undefined}
+          >
             <FolderPlus className="w-4 h-4 mr-2" />
             New Folder
           </Button>
-          <Button onClick={() => setShowUploadModal(true)}>
+          <Button
+            onClick={() => setShowUploadModal(true)}
+            disabled={!hasPermission('library:upload')}
+            title={!hasPermission('library:upload') ? 'You do not have permission to upload files' : undefined}
+          >
             <Upload className="w-4 h-4 mr-2" />
             Upload
           </Button>
@@ -1634,6 +1685,7 @@ export function FileManagerPage() {
                 onLink={setLinkFolder}
                 onRename={(f) => setRenameItem({ type: 'folder', id: f.id, name: f.name })}
                 wrapNames={wrapFolderNames}
+                hasPermission={hasPermission}
               />
             ))}
           </div>
@@ -1752,6 +1804,8 @@ export function FileManagerPage() {
                         variant="primary"
                         size="sm"
                         onClick={() => setPrintMultiFile(selectedSlicedFiles[0])}
+                        disabled={!hasPermission('printers:control')}
+                        title={!hasPermission('printers:control') ? 'You do not have permission to print' : undefined}
                       >
                         <Play className="w-4 h-4 sm:mr-1" />
                         <span className="hidden sm:inline">Print</span>
@@ -1762,7 +1816,8 @@ export function FileManagerPage() {
                         variant={selectedSlicedFiles.length === 1 ? 'secondary' : 'primary'}
                         size="sm"
                         onClick={() => addToQueueMutation.mutate(selectedSlicedFiles.map(f => f.id))}
-                        disabled={addToQueueMutation.isPending}
+                        disabled={addToQueueMutation.isPending || !hasPermission('queue:create')}
+                        title={!hasPermission('queue:create') ? 'You do not have permission to add to queue' : undefined}
                       >
                         <Clock className="w-4 h-4 sm:mr-1" />
                         <span className="hidden sm:inline">{addToQueueMutation.isPending ? 'Adding...' : `Add to Queue${selectedSlicedFiles.length < selectedFiles.length ? ` (${selectedSlicedFiles.length})` : ''}`}</span>
@@ -1772,6 +1827,8 @@ export function FileManagerPage() {
                       variant="secondary"
                       size="sm"
                       onClick={() => setShowMoveModal(true)}
+                      disabled={!hasPermission('library:update')}
+                      title={!hasPermission('library:update') ? 'You do not have permission to move files' : undefined}
                     >
                       <MoveRight className="w-4 h-4 sm:mr-1" />
                       <span className="hidden sm:inline">Move</span>
@@ -1786,6 +1843,8 @@ export function FileManagerPage() {
                           setDeleteConfirm({ type: 'bulk', id: 0, count: selectedFiles.length });
                         }
                       }}
+                      disabled={!hasPermission('library:delete')}
+                      title={!hasPermission('library:delete') ? 'You do not have permission to delete files' : undefined}
                     >
                       <Trash2 className="w-4 h-4 sm:mr-1" />
                       <span className="hidden sm:inline">Delete</span>
@@ -1825,7 +1884,11 @@ export function FileManagerPage() {
                   ? 'Upload files or move files into this folder to get started.'
                   : 'Upload files to start organizing your print-related files.'}
               </p>
-              <Button onClick={() => setShowUploadModal(true)}>
+              <Button
+                onClick={() => setShowUploadModal(true)}
+                disabled={!hasPermission('library:upload')}
+                title={!hasPermission('library:upload') ? 'You do not have permission to upload files' : undefined}
+              >
                 <Plus className="w-4 h-4 mr-2" />
                 Upload Files
               </Button>
@@ -1860,6 +1923,7 @@ export function FileManagerPage() {
                     onRename={(f) => setRenameItem({ type: 'file', id: f.id, name: f.filename })}
                     onGenerateThumbnail={(f) => singleThumbnailMutation.mutate(f.id)}
                     thumbnailVersion={thumbnailVersions[file.id]}
+                    hasPermission={hasPermission}
                   />
                 ))}
               </div>
@@ -1946,50 +2010,78 @@ export function FileManagerPage() {
                       {isSlicedFilename(file.filename) && (
                         <>
                           <button
-                            onClick={() => setPrintFile(file)}
-                            className="p-1.5 rounded hover:bg-bambu-dark text-bambu-gray hover:text-bambu-green transition-colors"
-                            title="Print"
+                            onClick={() => hasPermission('printers:control') && setPrintFile(file)}
+                            className={`p-1.5 rounded transition-colors ${
+                              hasPermission('printers:control')
+                                ? 'hover:bg-bambu-dark text-bambu-gray hover:text-bambu-green'
+                                : 'text-bambu-gray/50 cursor-not-allowed'
+                            }`}
+                            title={hasPermission('printers:control') ? 'Print' : 'You do not have permission to print'}
+                            disabled={!hasPermission('printers:control')}
                           >
                             <Printer className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => addToQueueMutation.mutate([file.id])}
-                            className="p-1.5 rounded hover:bg-bambu-dark text-bambu-gray hover:text-white transition-colors"
-                            title="Add to Queue"
-                            disabled={addToQueueMutation.isPending}
+                            onClick={() => hasPermission('queue:create') && addToQueueMutation.mutate([file.id])}
+                            className={`p-1.5 rounded transition-colors ${
+                              hasPermission('queue:create')
+                                ? 'hover:bg-bambu-dark text-bambu-gray hover:text-white'
+                                : 'text-bambu-gray/50 cursor-not-allowed'
+                            }`}
+                            title={hasPermission('queue:create') ? 'Add to Queue' : 'You do not have permission to add to queue'}
+                            disabled={addToQueueMutation.isPending || !hasPermission('queue:create')}
                           >
                             <Clock className="w-4 h-4" />
                           </button>
                         </>
                       )}
                       <button
-                        onClick={() => handleDownload(file.id)}
-                        className="p-1.5 rounded hover:bg-bambu-dark text-bambu-gray hover:text-white transition-colors"
-                        title="Download"
+                        onClick={() => hasPermission('library:read') && handleDownload(file.id)}
+                        className={`p-1.5 rounded transition-colors ${
+                          hasPermission('library:read')
+                            ? 'hover:bg-bambu-dark text-bambu-gray hover:text-white'
+                            : 'text-bambu-gray/50 cursor-not-allowed'
+                        }`}
+                        title={hasPermission('library:read') ? 'Download' : 'You do not have permission to download files'}
+                        disabled={!hasPermission('library:read')}
                       >
                         <Download className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => setRenameItem({ type: 'file', id: file.id, name: file.filename })}
-                        className="p-1.5 rounded hover:bg-bambu-dark text-bambu-gray hover:text-white transition-colors"
-                        title="Rename"
+                        onClick={() => hasPermission('library:update') && setRenameItem({ type: 'file', id: file.id, name: file.filename })}
+                        className={`p-1.5 rounded transition-colors ${
+                          hasPermission('library:update')
+                            ? 'hover:bg-bambu-dark text-bambu-gray hover:text-white'
+                            : 'text-bambu-gray/50 cursor-not-allowed'
+                        }`}
+                        title={hasPermission('library:update') ? 'Rename' : 'You do not have permission to rename files'}
+                        disabled={!hasPermission('library:update')}
                       >
                         <Pencil className="w-4 h-4" />
                       </button>
                       {file.file_type === 'stl' && (
                         <button
-                          onClick={() => singleThumbnailMutation.mutate(file.id)}
-                          className="p-1.5 rounded hover:bg-bambu-dark text-bambu-gray hover:text-bambu-green transition-colors"
-                          title="Generate Thumbnail"
-                          disabled={singleThumbnailMutation.isPending}
+                          onClick={() => hasPermission('library:update') && singleThumbnailMutation.mutate(file.id)}
+                          className={`p-1.5 rounded transition-colors ${
+                            hasPermission('library:update')
+                              ? 'hover:bg-bambu-dark text-bambu-gray hover:text-bambu-green'
+                              : 'text-bambu-gray/50 cursor-not-allowed'
+                          }`}
+                          title={hasPermission('library:update') ? 'Generate Thumbnail' : 'You do not have permission to generate thumbnails'}
+                          disabled={singleThumbnailMutation.isPending || !hasPermission('library:update')}
                         >
                           <Image className="w-4 h-4" />
                         </button>
                       )}
                       <button
-                        onClick={() => setDeleteConfirm({ type: 'file', id: file.id })}
-                        className="p-1.5 rounded hover:bg-bambu-dark text-bambu-gray hover:text-red-400 transition-colors"
-                        title="Delete"
+                        onClick={() => hasPermission('library:delete') && setDeleteConfirm({ type: 'file', id: file.id })}
+                        className={`p-1.5 rounded transition-colors ${
+                          hasPermission('library:delete')
+                            ? 'hover:bg-bambu-dark text-bambu-gray hover:text-red-400'
+                            : 'text-bambu-gray/50 cursor-not-allowed'
+                        }`}
+                        title={hasPermission('library:delete') ? 'Delete' : 'You do not have permission to delete files'}
+                        disabled={!hasPermission('library:delete')}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>

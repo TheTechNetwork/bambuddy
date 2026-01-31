@@ -183,6 +183,7 @@ from backend.app.api.routes import (
     filaments,
     firmware,
     github_backup,
+    groups,
     kprofiles,
     library,
     maintenance,
@@ -2526,6 +2527,7 @@ app = FastAPI(
 # API routes
 app.include_router(auth.router, prefix=app_settings.api_prefix)
 app.include_router(users.router, prefix=app_settings.api_prefix)
+app.include_router(groups.router, prefix=app_settings.api_prefix)
 app.include_router(printers.router, prefix=app_settings.api_prefix)
 app.include_router(archives.router, prefix=app_settings.api_prefix)
 app.include_router(filaments.router, prefix=app_settings.api_prefix)

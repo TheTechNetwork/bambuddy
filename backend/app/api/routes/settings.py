@@ -16,6 +16,7 @@ from backend.app.models.archive import PrintArchive
 from backend.app.models.external_link import ExternalLink
 from backend.app.models.filament import Filament
 from backend.app.models.github_backup import GitHubBackupConfig
+from backend.app.models.group import Group
 from backend.app.models.maintenance import MaintenanceHistory, MaintenanceType, PrinterMaintenance
 from backend.app.models.notification import NotificationProvider
 from backend.app.models.notification_template import NotificationTemplate
@@ -259,6 +260,7 @@ async def export_backup(
     include_users: bool = Query(
         False, description="Include users (passwords not exported - users will need new passwords)"
     ),
+    include_groups: bool = Query(False, description="Include groups and user-group assignments"),
     include_github_backup: bool = Query(False, description="Include GitHub backup configuration (token not exported)"),
 ):
     """Export selected data as JSON backup."""
@@ -876,10 +878,27 @@ async def export_backup(
                     "username": user.username,
                     "role": user.role,
                     "is_active": user.is_active,
+                    "groups": [g.name for g in user.groups],
                     # password_hash intentionally not exported for security
                 }
             )
         backup["included"].append("users")
+
+    # Groups (permission groups)
+    if include_groups:
+        result = await db.execute(select(Group))
+        groups = result.scalars().all()
+        backup["groups"] = []
+        for group in groups:
+            backup["groups"].append(
+                {
+                    "name": group.name,
+                    "description": group.description,
+                    "permissions": group.permissions,
+                    "is_system": group.is_system,
+                }
+            )
+        backup["included"].append("groups")
 
     # GitHub backup configuration
     if include_github_backup:
@@ -998,6 +1017,7 @@ async def import_backup(
         "projects": 0,
         "pending_uploads": 0,
         "users": 0,
+        "groups": 0,
         "github_backup": 0,
     }
     skipped = {
@@ -1013,6 +1033,7 @@ async def import_backup(
         "projects": 0,
         "pending_uploads": 0,
         "users": 0,
+        "groups": 0,
         "github_backup": 0,
     }
     skipped_details = {
@@ -1026,6 +1047,7 @@ async def import_backup(
         "projects": [],
         "pending_uploads": [],
         "users": [],
+        "groups": [],
     }
 
     # Restore settings (always overwrites)
@@ -2036,6 +2058,39 @@ async def import_backup(
                     }
                 )
 
+    # Restore groups (before users, so groups exist for assignment)
+    if "groups" in backup:
+        for group_data in backup["groups"]:
+            result = await db.execute(select(Group).where(Group.name == group_data["name"]))
+            existing = result.scalar_one_or_none()
+            if existing:
+                if overwrite and not existing.is_system:
+                    # Update non-system groups
+                    existing.description = group_data.get("description")
+                    existing.permissions = group_data.get("permissions", [])
+                    restored["groups"] += 1
+                else:
+                    skipped["groups"] += 1
+                    skipped_details["groups"].append(group_data["name"])
+            else:
+                group = Group(
+                    name=group_data["name"],
+                    description=group_data.get("description"),
+                    permissions=group_data.get("permissions", []),
+                    is_system=group_data.get("is_system", False),
+                )
+                db.add(group)
+                restored["groups"] += 1
+
+    # Flush to ensure groups are persisted before user assignment
+    await db.flush()
+
+    # Build group name to object lookup for user assignment
+    group_name_to_obj: dict[str, Group] = {}
+    result = await db.execute(select(Group))
+    for g in result.scalars().all():
+        group_name_to_obj[g.name] = g
+
     # Restore users (note: passwords not included in backup - users will need new passwords)
     # Users are skipped by default since they have no passwords; admin must recreate them
     new_users: list[str] = []
@@ -2049,6 +2104,10 @@ async def import_backup(
                 if overwrite:
                     existing.role = user_data.get("role", "user")
                     existing.is_active = user_data.get("is_active", True)
+                    # Assign groups if provided
+                    group_names = user_data.get("groups", [])
+                    if group_names:
+                        existing.groups = [group_name_to_obj[name] for name in group_names if name in group_name_to_obj]
                     # Don't change password - keep existing
                     restored["users"] += 1
                 else:
@@ -2066,6 +2125,10 @@ async def import_backup(
                     role=user_data.get("role", "user"),
                     is_active=user_data.get("is_active", True),
                 )
+                # Assign groups if provided
+                group_names = user_data.get("groups", [])
+                if group_names:
+                    user.groups = [group_name_to_obj[name] for name in group_names if name in group_name_to_obj]
                 db.add(user)
                 restored["users"] += 1
                 new_users.append(f"{user_data['username']} (temp password: {temp_password})")

@@ -5,6 +5,22 @@ All notable changes to Bambuddy will be documented in this file.
 ## [0.1.6-final] - Not released
 
 ### New Features
+- **Group-Based Permissions** - Granular access control with user groups:
+  - Create custom groups with specific permissions (50+ granular permissions)
+  - Default system groups: Administrators (full access), Operators (control printers), Viewers (read-only)
+  - Users can belong to multiple groups with additive permissions
+  - Permission-based UI: buttons/features disabled when user lacks permission
+  - Groups management page in Settings → Users → Groups tab
+  - Change password: users can change their own password from sidebar
+  - Included in backup/restore
+- **STL Thumbnail Generation** - Auto-generate preview thumbnails for STL files (Issue #156):
+  - Checkbox option when uploading STL files to generate thumbnails automatically
+  - Batch generate thumbnails for existing STL files via "Generate Thumbnails" button
+  - Individual file thumbnail generation via context menu (three-dot menu)
+  - Works with ZIP extraction (generates thumbnails for all STL files in archive)
+  - Uses trimesh and matplotlib for 3D rendering with Bambu green color theme
+  - Thumbnails auto-refresh in UI after generation
+  - Graceful handling of complex/invalid STL files
 - **Streaming Overlay for OBS** - Embeddable overlay page for live streaming with camera and print status (Issue #164):
   - All-in-one page at `/overlay/:printerId` combining camera feed with status overlay
   - Real-time print progress, ETA, layer count, and filename display

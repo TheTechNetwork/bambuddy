@@ -39,6 +39,7 @@ async def init_db():
         external_link,
         filament,
         github_backup,
+        group,
         kprofile_note,
         library,
         maintenance,
@@ -61,6 +62,9 @@ async def init_db():
 
     # Seed default notification templates
     await seed_notification_templates()
+
+    # Seed default groups and migrate existing users
+    await seed_default_groups()
 
 
 async def run_migrations(conn):
@@ -894,6 +898,41 @@ async def run_migrations(conn):
     except Exception:
         pass
 
+    # Migration: Create groups table for permission-based access control
+    try:
+        await conn.execute(
+            text("""
+            CREATE TABLE IF NOT EXISTS groups (
+                id INTEGER PRIMARY KEY,
+                name VARCHAR(100) NOT NULL UNIQUE,
+                description VARCHAR(500),
+                permissions JSON,
+                is_system BOOLEAN NOT NULL DEFAULT 0,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        )
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_groups_name ON groups(name)"))
+    except Exception:
+        pass
+
+    # Migration: Create user_groups association table
+    try:
+        await conn.execute(
+            text("""
+            CREATE TABLE IF NOT EXISTS user_groups (
+                user_id INTEGER NOT NULL,
+                group_id INTEGER NOT NULL,
+                PRIMARY KEY (user_id, group_id),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE
+            )
+        """)
+        )
+    except Exception:
+        pass
+
 
 async def seed_notification_templates():
     """Seed default notification templates if they don't exist."""
@@ -931,3 +970,70 @@ async def seed_notification_templates():
                     session.add(template)
 
         await session.commit()
+
+
+async def seed_default_groups():
+    """Seed default groups and migrate existing users to appropriate groups.
+
+    Creates the default system groups (Administrators, Operators, Viewers) if they
+    don't exist, then migrates existing users:
+    - Users with role='admin' -> Administrators group
+    - Users with role='user' -> Operators group
+    """
+    import logging
+
+    from sqlalchemy import select
+
+    from backend.app.core.permissions import DEFAULT_GROUPS
+    from backend.app.models.group import Group
+    from backend.app.models.user import User
+
+    logger = logging.getLogger(__name__)
+
+    async with async_session() as session:
+        # Get existing groups
+        result = await session.execute(select(Group.name))
+        existing_groups = {row[0] for row in result.fetchall()}
+
+        # Create default groups if they don't exist
+        groups_created = []
+        for group_name, group_config in DEFAULT_GROUPS.items():
+            if group_name not in existing_groups:
+                group = Group(
+                    name=group_name,
+                    description=group_config["description"],
+                    permissions=group_config["permissions"],
+                    is_system=group_config["is_system"],
+                )
+                session.add(group)
+                groups_created.append(group_name)
+                logger.info(f"Created default group: {group_name}")
+
+        await session.commit()
+
+        # Migrate existing users to groups if they're not already in any group
+        if groups_created:
+            # Get the groups we need
+            admin_result = await session.execute(select(Group).where(Group.name == "Administrators"))
+            admin_group = admin_result.scalar_one_or_none()
+
+            operators_result = await session.execute(select(Group).where(Group.name == "Operators"))
+            operators_group = operators_result.scalar_one_or_none()
+
+            # Get all users
+            users_result = await session.execute(select(User))
+            users = users_result.scalars().all()
+
+            for user in users:
+                # Skip if user already has groups
+                if user.groups:
+                    continue
+
+                if user.role == "admin" and admin_group:
+                    user.groups.append(admin_group)
+                    logger.info(f"Migrated admin user '{user.username}' to Administrators group")
+                elif operators_group:
+                    user.groups.append(operators_group)
+                    logger.info(f"Migrated user '{user.username}' to Operators group")
+
+            await session.commit()
