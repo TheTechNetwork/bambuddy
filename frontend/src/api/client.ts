@@ -2498,25 +2498,9 @@ export const api = {
   getMQTTStatus: () => request<MQTTStatus>('/settings/mqtt/status'),
   resetSettings: () =>
     request<AppSettings>('/settings/reset', { method: 'POST' }),
-  exportBackup: async (categories?: Record<string, boolean>): Promise<{ blob: Blob; filename: string }> => {
-    const params = new URLSearchParams();
-    if (categories) {
-      if (categories.settings !== undefined) params.set('include_settings', String(categories.settings));
-      if (categories.notifications !== undefined) params.set('include_notifications', String(categories.notifications));
-      if (categories.templates !== undefined) params.set('include_templates', String(categories.templates));
-      if (categories.smart_plugs !== undefined) params.set('include_smart_plugs', String(categories.smart_plugs));
-      if (categories.external_links !== undefined) params.set('include_external_links', String(categories.external_links));
-      if (categories.printers !== undefined) params.set('include_printers', String(categories.printers));
-      if (categories.plate_calibration !== undefined) params.set('include_plate_calibration', String(categories.plate_calibration));
-      if (categories.filaments !== undefined) params.set('include_filaments', String(categories.filaments));
-      if (categories.maintenance !== undefined) params.set('include_maintenance', String(categories.maintenance));
-      if (categories.archives !== undefined) params.set('include_archives', String(categories.archives));
-      if (categories.projects !== undefined) params.set('include_projects', String(categories.projects));
-      if (categories.pending_uploads !== undefined) params.set('include_pending_uploads', String(categories.pending_uploads));
-      if (categories.access_codes !== undefined) params.set('include_access_codes', String(categories.access_codes));
-      if (categories.api_keys !== undefined) params.set('include_api_keys', String(categories.api_keys));
-    }
-    const url = `${API_BASE}/settings/backup${params.toString() ? '?' + params.toString() : ''}`;
+  exportBackup: async (): Promise<{ blob: Blob; filename: string }> => {
+    // New simplified backup - complete database + all files
+    const url = `${API_BASE}/settings/backup`;
     const response = await fetch(url);
 
     // Check for errors
@@ -2527,7 +2511,7 @@ export const api = {
 
     // Get filename from Content-Disposition header
     const contentDisposition = response.headers.get('Content-Disposition');
-    let filename = 'bambuddy-backup.json';
+    let filename = 'bambuddy-backup.zip';
     if (contentDisposition) {
       const match = contentDisposition.match(/filename=([^;]+)/);
       if (match) filename = match[1].trim();
@@ -2536,10 +2520,11 @@ export const api = {
     const blob = await response.blob();
     return { blob, filename };
   },
-  importBackup: async (file: File, overwrite = false) => {
+  importBackup: async (file: File) => {
+    // New simplified restore - replaces database + all directories
     const formData = new FormData();
     formData.append('file', file);
-    const url = `${API_BASE}/settings/restore${overwrite ? '?overwrite=true' : ''}`;
+    const url = `${API_BASE}/settings/restore`;
     const response = await fetch(url, {
       method: 'POST',
       body: formData,
@@ -2547,11 +2532,6 @@ export const api = {
     return response.json() as Promise<{
       success: boolean;
       message: string;
-      restored?: Record<string, number>;
-      skipped?: Record<string, number>;
-      skipped_details?: Record<string, string[]>;
-      files_restored?: number;
-      total_skipped?: number;
     }>;
   },
   checkFfmpeg: () =>

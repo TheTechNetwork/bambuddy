@@ -15,6 +15,26 @@ async_session = async_sessionmaker(
 )
 
 
+async def close_all_connections():
+    """Close all database connections for backup/restore operations."""
+    global engine
+    await engine.dispose()
+
+
+async def reinitialize_database():
+    """Reinitialize database connection after restore."""
+    global engine, async_session
+    engine = create_async_engine(
+        settings.database_url,
+        echo=settings.debug,
+    )
+    async_session = async_sessionmaker(
+        engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+
+
 class Base(DeclarativeBase):
     pass
 

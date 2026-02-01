@@ -238,7 +238,65 @@ async def update_spoolman_settings(
 
 
 @router.get("/backup")
-async def export_backup(
+async def create_backup(db: AsyncSession = Depends(get_db)):
+    """Create a complete backup (database + all files) as a ZIP.
+
+    This is a simplified backup that includes the entire SQLite database
+    and all data directories. It is complete by definition and cannot miss data.
+    """
+    import shutil
+    import tempfile
+
+    from sqlalchemy import text
+
+    from backend.app.core.database import engine
+
+    base_dir = app_settings.base_dir
+    db_path = Path(app_settings.database_url.replace("sqlite+aiosqlite:///", ""))
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+
+        # 1. Checkpoint WAL to ensure all data is in main db file
+        async with engine.begin() as conn:
+            await conn.execute(text("PRAGMA wal_checkpoint(TRUNCATE)"))
+
+        # 2. Copy database file
+        shutil.copy2(db_path, temp_path / "bambuddy.db")
+
+        # 3. Copy data directories (if they exist)
+        dirs_to_backup = [
+            ("archive", base_dir / "archive"),
+            ("virtual_printer", base_dir / "virtual_printer"),
+            ("plate_calibration", app_settings.plate_calibration_dir),
+            ("icons", base_dir / "icons"),
+            ("projects", base_dir / "projects"),
+        ]
+
+        for name, src_dir in dirs_to_backup:
+            if src_dir.exists() and any(src_dir.iterdir()):
+                shutil.copytree(src_dir, temp_path / name)
+
+        # 4. Create ZIP
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+            for file_path in temp_path.rglob("*"):
+                if file_path.is_file():
+                    arcname = file_path.relative_to(temp_path)
+                    zf.write(file_path, arcname)
+
+        zip_buffer.seek(0)
+        filename = f"bambuddy-backup-{datetime.now().strftime('%Y%m%d-%H%M%S')}.zip"
+
+        return StreamingResponse(
+            zip_buffer,
+            media_type="application/zip",
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
+        )
+
+
+@router.get("/backup-legacy")
+async def export_backup_legacy(
     db: AsyncSession = Depends(get_db),
     include_settings: bool = Query(True, description="Include app settings"),
     include_notifications: bool = Query(True, description="Include notification providers"),
@@ -953,12 +1011,84 @@ async def export_backup(
 
 
 @router.post("/restore")
-async def import_backup(
+async def restore_backup(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """Restore from a complete backup ZIP.
+
+    This is a simplified restore that replaces the database and all data directories
+    from the backup ZIP. Requires a restart after restore.
+    """
+    import shutil
+    import tempfile
+
+    from fastapi import HTTPException
+
+    from backend.app.core.database import close_all_connections
+
+    base_dir = app_settings.base_dir
+    db_path = Path(app_settings.database_url.replace("sqlite+aiosqlite:///", ""))
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+
+        # 1. Read and extract ZIP
+        content = await file.read()
+
+        # Check if it's a valid ZIP
+        if not file.filename or not file.filename.endswith(".zip"):
+            raise HTTPException(400, "Invalid backup file: must be a .zip file")
+
+        try:
+            with zipfile.ZipFile(io.BytesIO(content), "r") as zf:
+                zf.extractall(temp_path)
+        except zipfile.BadZipFile:
+            raise HTTPException(400, "Invalid backup file: not a valid ZIP")
+
+        # 2. Validate backup (must have database)
+        backup_db = temp_path / "bambuddy.db"
+        if not backup_db.exists():
+            raise HTTPException(400, "Invalid backup: missing bambuddy.db")
+
+        # 3. Close current database connections
+        await close_all_connections()
+
+        # 4. Replace database
+        shutil.copy2(backup_db, db_path)
+
+        # 5. Replace data directories
+        dirs_to_restore = [
+            ("archive", base_dir / "archive"),
+            ("virtual_printer", base_dir / "virtual_printer"),
+            ("plate_calibration", app_settings.plate_calibration_dir),
+            ("icons", base_dir / "icons"),
+            ("projects", base_dir / "projects"),
+        ]
+
+        for name, dest_dir in dirs_to_restore:
+            src_dir = temp_path / name
+            if src_dir.exists():
+                if dest_dir.exists():
+                    shutil.rmtree(dest_dir)
+                shutil.copytree(src_dir, dest_dir)
+
+        # 6. Note: Database connection will be reinitialized on restart
+        # The application should be restarted after restore
+
+        return {
+            "success": True,
+            "message": "Backup restored successfully. Please restart Bambuddy for changes to take effect.",
+        }
+
+
+@router.post("/restore-legacy")
+async def import_backup_legacy(
     file: UploadFile = File(...),
     overwrite: bool = Query(False, description="Overwrite existing data instead of skipping duplicates"),
     db: AsyncSession = Depends(get_db),
 ):
-    """Restore data from JSON or ZIP backup. By default skips duplicates, set overwrite=true to replace existing."""
+    """Legacy restore: Restore data from JSON or ZIP backup. By default skips duplicates, set overwrite=true to replace existing."""
     try:
         content = await file.read()
         base_dir = app_settings.base_dir
