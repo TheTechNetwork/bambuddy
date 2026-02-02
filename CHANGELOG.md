@@ -6,6 +6,19 @@ All notable changes to Bambuddy will be documented in this file.
 
 ## [0.1.6.2] - 2026-02-02
 
+> **Security Release**: This release addresses critical security vulnerabilities. Users running authentication-enabled instances should upgrade immediately.
+
+### Security
+- **Critical: Hardcoded JWT Secret Key** (GHSA-gc24-px2r-5qmf, CWE-321) - Fixed hardcoded JWT secret key that could allow attackers to forge authentication tokens:
+  - JWT secret now loaded from `JWT_SECRET_KEY` environment variable (recommended for production)
+  - Falls back to auto-generated `.jwt_secret` file in data directory with secure permissions (0600)
+  - Generates cryptographically secure 64-byte random secret if neither exists
+  - **Action Required**: Existing users will need to re-login after upgrading
+- **Critical: Missing API Authentication** (GHSA-gc24-px2r-5qmf, CWE-306) - Fixed 77+ API endpoints that lacked authentication checks:
+  - Added HTTP middleware enforcing authentication on ALL `/api/` routes when auth is enabled
+  - Only essential public endpoints are exempt (login, auth status, version check, WebSocket)
+  - All other API calls now require valid JWT token or API key
+
 ### Enhancements
 - **Location Filter for Queue** (Issue #220):
   - Filter queue jobs by printer location in the Queue page
@@ -73,6 +86,13 @@ All notable changes to Bambuddy will be documented in this file.
   - Automatic migration converts existing absolute paths to relative on startup
   - Thumbnails and files now display correctly after restoring backups
 - **File uploads failing with authentication enabled** - Fixed all file upload functions (archives, photos, timelapses, library files, etc.) not sending authentication headers when auth is enabled
+- **External spool AMS mapping causing "Failed to get AMS mapping table"** (Issue #213) - Fixed external spool `ams_mapping2` slot_id handling that caused AMS mapping failures
+- **Filename matching for files with spaces** (Issue #218) - Fixed file detection when filenames contain spaces
+- **P2S FTP upload failure** (Issue #218) - Fixed FTP uploads to P2S printers by passing `skip_session_reuse` to ImplicitFTP_TLS
+- **Printer deletion freeze** (Issue #214) - Fixed UI freeze when deleting printers, and now allows multiple smart plugs per printer
+- **Stack trace exposure in error responses** (CodeQL Alert #68) - Fixed stack traces being exposed in API error responses in archives.py
+- **Printer serial numbers exposed in support bundle** (Issue #216) - Sanitized printer serial numbers in support bundle logs for privacy
+- **Missing sliced_for_model migration** (Issue #211) - Fixed database migration for `sliced_for_model` column that was missing in some upgrade paths
 
 ## [0.1.6-final] - 2026-01-31
 
