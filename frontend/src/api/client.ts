@@ -2062,9 +2062,13 @@ export const api = {
   getPrinterFileDownloadUrl: (printerId: number, path: string) =>
     `${API_BASE}/printers/${printerId}/files/download?path=${encodeURIComponent(path)}`,
   downloadPrinterFilesAsZip: async (printerId: number, paths: string[]): Promise<Blob> => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`;
+    }
     const response = await fetch(`${API_BASE}/printers/${printerId}/files/download-zip`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ paths }),
     });
     if (!response.ok) {
@@ -2173,7 +2177,11 @@ export const api = {
     if (options?.dateTo) params.set('date_to', options.dateTo);
     if (options?.search) params.set('search', options.search);
 
-    const response = await fetch(`${API_BASE}/archives/export?${params}`);
+    const headers: Record<string, string> = {};
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`;
+    }
+    const response = await fetch(`${API_BASE}/archives/export?${params}`, { headers });
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
       throw new Error(error.detail || `HTTP ${response.status}`);
@@ -2201,7 +2209,11 @@ export const api = {
     if (options?.printerId) params.set('printer_id', String(options.printerId));
     if (options?.projectId) params.set('project_id', String(options.projectId));
 
-    const response = await fetch(`${API_BASE}/archives/stats/export?${params}`);
+    const headers: Record<string, string> = {};
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`;
+    }
+    const response = await fetch(`${API_BASE}/archives/stats/export?${params}`, { headers });
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
       throw new Error(error.detail || `HTTP ${response.status}`);
@@ -3961,7 +3973,11 @@ export const supportApi = {
     }),
 
   downloadSupportBundle: async () => {
-    const response = await fetch(`${API_BASE}/support/bundle`);
+    const headers: Record<string, string> = {};
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`;
+    }
+    const response = await fetch(`${API_BASE}/support/bundle`, { headers });
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
       throw new Error(error.detail || `HTTP ${response.status}`);
