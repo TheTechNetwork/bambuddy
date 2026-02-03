@@ -413,10 +413,10 @@ async def restore_backup(
             }
 
         except Exception as e:
-            logger.error(f"Restore failed: {e}")
+            logger.error(f"Restore failed: {e}", exc_info=True)
             return JSONResponse(
                 status_code=500,
-                content={"success": False, "message": f"Restore failed: {str(e)}"},
+                content={"success": False, "message": "Restore failed. Check server logs for details."},
             )
 
 
@@ -592,9 +592,10 @@ async def update_virtual_printer_settings(
             content={"detail": str(e)},
         )
     except Exception as e:
+        logger.error(f"Failed to configure virtual printer: {e}", exc_info=True)
         return JSONResponse(
             status_code=500,
-            content={"detail": f"Failed to configure virtual printer: {e}"},
+            content={"detail": "Failed to configure virtual printer. Check server logs for details."},
         )
 
     return await get_virtual_printer_settings(db)
