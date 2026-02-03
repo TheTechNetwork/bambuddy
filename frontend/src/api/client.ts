@@ -3789,22 +3789,36 @@ export const discoveryApi = {
 };
 
 // Virtual Printer types
+export type VirtualPrinterMode = 'immediate' | 'queue' | 'review' | 'print_queue' | 'proxy';  // 'queue' is legacy, normalized to 'review'
+
+export interface VirtualPrinterProxyStatus {
+  running: boolean;
+  target_host: string;
+  ftp_port: number;
+  mqtt_port: number;
+  ftp_connections: number;
+  mqtt_connections: number;
+}
+
 export interface VirtualPrinterStatus {
   enabled: boolean;
   running: boolean;
-  mode: 'immediate' | 'queue' | 'review' | 'print_queue';  // 'queue' is legacy, normalized to 'review'
+  mode: VirtualPrinterMode;
   name: string;
   serial: string;
   model: string;
   model_name: string;
   pending_files: number;
+  target_printer_ip?: string;  // For proxy mode
+  proxy?: VirtualPrinterProxyStatus;  // For proxy mode
 }
 
 export interface VirtualPrinterSettings {
   enabled: boolean;
   access_code_set: boolean;
-  mode: 'immediate' | 'queue' | 'review' | 'print_queue';  // 'queue' is legacy, normalized to 'review'
+  mode: VirtualPrinterMode;
   model: string;
+  target_printer_id: number | null;  // For proxy mode
   status: VirtualPrinterStatus;
 }
 
@@ -3834,14 +3848,16 @@ export const virtualPrinterApi = {
   updateSettings: (data: {
     enabled?: boolean;
     access_code?: string;
-    mode?: 'immediate' | 'review' | 'print_queue';
+    mode?: 'immediate' | 'review' | 'print_queue' | 'proxy';
     model?: string;
+    target_printer_id?: number;
   }) => {
     const params = new URLSearchParams();
     if (data.enabled !== undefined) params.set('enabled', String(data.enabled));
     if (data.access_code !== undefined) params.set('access_code', data.access_code);
     if (data.mode !== undefined) params.set('mode', data.mode);
     if (data.model !== undefined) params.set('model', data.model);
+    if (data.target_printer_id !== undefined) params.set('target_printer_id', String(data.target_printer_id));
 
     return request<VirtualPrinterSettings>(`/settings/virtual-printer?${params.toString()}`, {
       method: 'PUT',

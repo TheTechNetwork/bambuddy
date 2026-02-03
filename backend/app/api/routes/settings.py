@@ -396,12 +396,14 @@ async def get_virtual_printer_settings(
     access_code = await get_setting(db, "virtual_printer_access_code")
     mode = await get_setting(db, "virtual_printer_mode")
     model = await get_setting(db, "virtual_printer_model")
+    target_printer_id = await get_setting(db, "virtual_printer_target_printer_id")
 
     return {
         "enabled": enabled == "true" if enabled else False,
         "access_code_set": bool(access_code),
         "mode": mode or "immediate",
         "model": model or DEFAULT_VIRTUAL_PRINTER_MODEL,
+        "target_printer_id": int(target_printer_id) if target_printer_id else None,
         "status": virtual_printer_manager.get_status(),
     }
 
@@ -412,10 +414,14 @@ async def update_virtual_printer_settings(
     access_code: str = None,
     mode: str = None,
     model: str = None,
+    target_printer_id: int = None,
     db: AsyncSession = Depends(get_db),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.SETTINGS_UPDATE),
 ):
     """Update virtual printer settings and restart services if needed."""
+    from sqlalchemy import select
+
+    from backend.app.models.printer import Printer
     from backend.app.services.virtual_printer import (
         DEFAULT_VIRTUAL_PRINTER_MODEL,
         VIRTUAL_PRINTER_MODELS,
@@ -427,20 +433,24 @@ async def update_virtual_printer_settings(
     current_access_code = await get_setting(db, "virtual_printer_access_code") or ""
     current_mode = await get_setting(db, "virtual_printer_mode") or "immediate"
     current_model = await get_setting(db, "virtual_printer_model") or DEFAULT_VIRTUAL_PRINTER_MODEL
+    current_target_id_str = await get_setting(db, "virtual_printer_target_printer_id")
+    current_target_id = int(current_target_id_str) if current_target_id_str else None
 
     # Apply updates
     new_enabled = enabled if enabled is not None else current_enabled
     new_access_code = access_code if access_code is not None else current_access_code
     new_mode = mode if mode is not None else current_mode
     new_model = model if model is not None else current_model
+    new_target_id = target_printer_id if target_printer_id is not None else current_target_id
 
     # Validate mode
     # "review" is the new name for "queue" (pending review before archiving)
     # "print_queue" archives and adds to print queue (unassigned)
-    if new_mode not in ("immediate", "queue", "review", "print_queue"):
+    # "proxy" is transparent TCP proxy to a real printer
+    if new_mode not in ("immediate", "queue", "review", "print_queue", "proxy"):
         return JSONResponse(
             status_code=400,
-            content={"detail": "Mode must be 'immediate', 'review', or 'print_queue'"},
+            content={"detail": "Mode must be 'immediate', 'review', 'print_queue', or 'proxy'"},
         )
     # Normalize legacy "queue" to "review" for storage
     if new_mode == "queue":
@@ -453,19 +463,51 @@ async def update_virtual_printer_settings(
             content={"detail": f"Invalid model. Must be one of: {', '.join(VIRTUAL_PRINTER_MODELS.keys())}"},
         )
 
-    # Validate access code when enabling
-    if new_enabled and not new_access_code:
-        return JSONResponse(
-            status_code=400,
-            content={"detail": "Access code is required when enabling virtual printer"},
-        )
+    # Mode-specific validation and printer lookup
+    target_printer_ip = ""
+    target_printer_serial = ""
+    if new_mode == "proxy":
+        # Proxy mode requires target printer when enabling
+        if new_enabled and not new_target_id:
+            # If just switching to proxy mode (not explicitly enabling), auto-disable
+            if enabled is None:
+                new_enabled = False
+            else:
+                return JSONResponse(
+                    status_code=400,
+                    content={"detail": "Target printer is required for proxy mode"},
+                )
 
-    # Validate access code length (Bambu Studio requires exactly 8 characters)
-    if access_code is not None and len(access_code) != 8:
-        return JSONResponse(
-            status_code=400,
-            content={"detail": "Access code must be exactly 8 characters"},
-        )
+        # Look up printer IP and serial if we have a target
+        if new_target_id:
+            result = await db.execute(select(Printer).where(Printer.id == new_target_id))
+            printer = result.scalar_one_or_none()
+            if not printer:
+                return JSONResponse(
+                    status_code=400,
+                    content={"detail": f"Printer with ID {new_target_id} not found"},
+                )
+            target_printer_ip = printer.ip_address
+            target_printer_serial = printer.serial_number
+        # Access code not required for proxy mode
+    else:
+        # Non-proxy modes require access code when enabling
+        if new_enabled and not new_access_code:
+            # If just switching modes (not explicitly enabling), auto-disable
+            if enabled is None:
+                new_enabled = False
+            else:
+                return JSONResponse(
+                    status_code=400,
+                    content={"detail": "Access code is required when enabling virtual printer"},
+                )
+
+        # Validate access code length (Bambu Studio requires exactly 8 characters)
+        if access_code is not None and access_code and len(access_code) != 8:
+            return JSONResponse(
+                status_code=400,
+                content={"detail": "Access code must be exactly 8 characters"},
+            )
 
     # Save settings
     await set_setting(db, "virtual_printer_enabled", "true" if new_enabled else "false")
@@ -474,6 +516,8 @@ async def update_virtual_printer_settings(
     await set_setting(db, "virtual_printer_mode", new_mode)
     if model is not None:
         await set_setting(db, "virtual_printer_model", model)
+    if target_printer_id is not None:
+        await set_setting(db, "virtual_printer_target_printer_id", str(target_printer_id))
     await db.commit()
     db.expire_all()
 
@@ -484,6 +528,8 @@ async def update_virtual_printer_settings(
             access_code=new_access_code,
             mode=new_mode,
             model=new_model,
+            target_printer_ip=target_printer_ip,
+            target_printer_serial=target_printer_serial,
         )
     except ValueError as e:
         return JSONResponse(
