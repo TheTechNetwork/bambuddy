@@ -1466,7 +1466,9 @@ export function FileManagerPage() {
   };
 
   const handleDownload = (id: number) => {
-    window.open(api.getLibraryFileDownloadUrl(id), '_blank');
+    api.downloadLibraryFile(id).catch((err) => {
+      console.error('Library file download failed:', err);
+    });
   };
 
   const handleDeleteConfirm = () => {

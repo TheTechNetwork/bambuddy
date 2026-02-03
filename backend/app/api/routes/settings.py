@@ -1,4 +1,5 @@
 import io
+import logging
 import zipfile
 from datetime import datetime
 from pathlib import Path
@@ -15,6 +16,8 @@ from backend.app.core.permissions import Permission
 from backend.app.models.settings import Settings
 from backend.app.models.user import User
 from backend.app.schemas.settings import AppSettings, AppSettingsUpdate
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -311,6 +314,7 @@ async def restore_backup(
     from fastapi import HTTPException
 
     from backend.app.core.database import close_all_connections
+    from backend.app.services.virtual_printer import virtual_printer_manager
 
     base_dir = app_settings.base_dir
     db_path = Path(app_settings.database_url.replace("sqlite+aiosqlite:///", ""))
@@ -336,35 +340,84 @@ async def restore_backup(
         if not backup_db.exists():
             raise HTTPException(400, "Invalid backup: missing bambuddy.db")
 
-        # 3. Close current database connections
-        await close_all_connections()
+        try:
+            import asyncio
 
-        # 4. Replace database
-        shutil.copy2(backup_db, db_path)
+            # 3. Stop virtual printer if running (releases file locks)
+            try:
+                if virtual_printer_manager.is_enabled:
+                    logger.info("Stopping virtual printer for restore...")
+                    await virtual_printer_manager.configure(enabled=False)
+                    # Give it time to fully release file handles
+                    await asyncio.sleep(1)
+            except Exception as e:
+                logger.warning(f"Failed to stop virtual printer: {e}")
 
-        # 5. Replace data directories
-        dirs_to_restore = [
-            ("archive", base_dir / "archive"),
-            ("virtual_printer", base_dir / "virtual_printer"),
-            ("plate_calibration", app_settings.plate_calibration_dir),
-            ("icons", base_dir / "icons"),
-            ("projects", base_dir / "projects"),
-        ]
+            # 4. Close current database connections
+            logger.info("Closing database connections...")
+            await close_all_connections()
 
-        for name, dest_dir in dirs_to_restore:
-            src_dir = temp_path / name
-            if src_dir.exists():
-                if dest_dir.exists():
-                    shutil.rmtree(dest_dir)
-                shutil.copytree(src_dir, dest_dir)
+            # 5. Replace database
+            logger.info("Restoring database from backup...")
+            shutil.copy2(backup_db, db_path)
 
-        # 6. Note: Database connection will be reinitialized on restart
-        # The application should be restarted after restore
+            # 6. Replace data directories
+            # For Docker compatibility: clear contents then copy (don't delete mount points)
+            dirs_to_restore = [
+                ("archive", base_dir / "archive"),
+                ("virtual_printer", base_dir / "virtual_printer"),
+                ("plate_calibration", app_settings.plate_calibration_dir),
+                ("icons", base_dir / "icons"),
+                ("projects", base_dir / "projects"),
+            ]
 
-        return {
-            "success": True,
-            "message": "Backup restored successfully. Please restart Bambuddy for changes to take effect.",
-        }
+            skipped_dirs = []
+            for name, dest_dir in dirs_to_restore:
+                src_dir = temp_path / name
+                if src_dir.exists():
+                    logger.info(f"Restoring {name} directory...")
+                    try:
+                        # Clear destination contents (not the dir itself - may be Docker mount)
+                        if dest_dir.exists():
+                            for item in dest_dir.iterdir():
+                                try:
+                                    if item.is_dir():
+                                        shutil.rmtree(item)
+                                    else:
+                                        item.unlink()
+                                except OSError as e:
+                                    logger.warning(f"Could not delete {item}: {e}")
+                        else:
+                            dest_dir.mkdir(parents=True, exist_ok=True)
+                        # Copy contents from backup
+                        for item in src_dir.iterdir():
+                            dest_item = dest_dir / item.name
+                            if item.is_dir():
+                                shutil.copytree(item, dest_item)
+                            else:
+                                shutil.copy2(item, dest_item)
+                    except OSError as e:
+                        logger.warning(f"Could not restore {name} directory: {e}")
+                        skipped_dirs.append(name)
+
+            # 7. Note: Virtual printer and database will be reinitialized on restart
+            # Do NOT try to restart services here - the database session is closed
+
+            logger.info("Restore complete - restart required")
+            message = "Backup restored successfully. Please restart Bambuddy for changes to take effect."
+            if skipped_dirs:
+                message += f" Note: Some directories could not be restored ({', '.join(skipped_dirs)})."
+            return {
+                "success": True,
+                "message": message,
+            }
+
+        except Exception as e:
+            logger.error(f"Restore failed: {e}", exc_info=True)
+            return JSONResponse(
+                status_code=500,
+                content={"success": False, "message": "Restore failed. Check server logs for details."},
+            )
 
 
 @router.get("/virtual-printer/models")
@@ -539,9 +592,10 @@ async def update_virtual_printer_settings(
             content={"detail": str(e)},
         )
     except Exception as e:
+        logger.error(f"Failed to configure virtual printer: {e}", exc_info=True)
         return JSONResponse(
             status_code=500,
-            content={"detail": f"Failed to configure virtual printer: {e}"},
+            content={"detail": "Failed to configure virtual printer. Check server logs for details."},
         )
 
     return await get_virtual_printer_settings(db)

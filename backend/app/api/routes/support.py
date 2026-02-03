@@ -308,8 +308,8 @@ async def clear_logs(
             logger.info("Log file cleared by user")
             return {"message": "Logs cleared successfully"}
         except Exception as e:
-            logger.error(f"Error clearing log file: {e}")
-            raise HTTPException(status_code=500, detail=f"Failed to clear logs: {e}")
+            logger.error(f"Error clearing log file: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to clear logs. Check server logs for details.")
 
     return {"message": "Log file does not exist"}
 

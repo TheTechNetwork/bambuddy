@@ -356,10 +356,9 @@ function ArchiveCard({
       icon: <FileCode className="w-4 h-4" />,
       onClick: () => {
         if (archive.source_3mf_path) {
-          const link = document.createElement('a');
-          link.href = api.getSource3mfDownloadUrl(archive.id);
-          link.download = `${archive.print_name || archive.filename}_source.3mf`;
-          link.click();
+          api.downloadSource3mf(archive.id).catch((err) => {
+            console.error('Source 3MF download failed:', err);
+          });
         } else {
           source3mfInputRef.current?.click();
         }
@@ -393,10 +392,9 @@ function ArchiveCard({
       label: t('archives.menu.downloadF3d'),
       icon: <Download className="w-4 h-4" />,
       onClick: () => {
-        const link = document.createElement('a');
-        link.href = api.getF3dDownloadUrl(archive.id);
-        link.download = `${archive.print_name || archive.filename}.f3d`;
-        link.click();
+        api.downloadF3d(archive.id).catch((err) => {
+          console.error('F3D download failed:', err);
+        });
       },
     },
     {
@@ -412,10 +410,9 @@ function ArchiveCard({
       label: t('archives.menu.download'),
       icon: <Download className="w-4 h-4" />,
       onClick: () => {
-        const link = document.createElement('a');
-        link.href = api.getArchiveDownload(archive.id);
-        link.download = `${archive.print_name || archive.filename}.3mf`;
-        link.click();
+        api.downloadArchive(archive.id, `${archive.print_name || archive.filename}.3mf`).catch((err) => {
+          console.error('Archive download failed:', err);
+        });
       },
       disabled: !hasPermission('archives:read'),
       title: !hasPermission('archives:read') ? t('archives.permission.noDownload') : undefined,
@@ -709,7 +706,9 @@ function ArchiveCard({
             onClick={(e) => {
               e.stopPropagation();
               // Download F3D file
-              window.location.href = api.getF3dDownloadUrl(archive.id);
+              api.downloadF3d(archive.id).catch((err) => {
+                console.error('F3D download failed:', err);
+              });
             }}
             title={t('archives.card.downloadF3d')}
           >
@@ -997,10 +996,9 @@ function ArchiveCard({
             size="sm"
             className="min-w-0 p-1 sm:p-1.5"
             onClick={() => {
-              const link = document.createElement('a');
-              link.href = api.getArchiveDownload(archive.id);
-              link.download = `${archive.print_name || archive.filename}.3mf`;
-              link.click();
+              api.downloadArchive(archive.id, `${archive.print_name || archive.filename}.3mf`).catch((err) => {
+                console.error('Archive download failed:', err);
+              });
             }}
             title={t('archives.card.download')}
           >
@@ -1490,10 +1488,9 @@ function ArchiveListRow({
       icon: <FileCode className="w-4 h-4" />,
       onClick: () => {
         if (archive.source_3mf_path) {
-          const link = document.createElement('a');
-          link.href = api.getSource3mfDownloadUrl(archive.id);
-          link.download = `${archive.print_name || archive.filename}_source.3mf`;
-          link.click();
+          api.downloadSource3mf(archive.id).catch((err) => {
+            console.error('Source 3MF download failed:', err);
+          });
         } else {
           source3mfInputRef.current?.click();
         }
@@ -1527,10 +1524,9 @@ function ArchiveListRow({
       label: t('archives.menu.downloadF3d'),
       icon: <Download className="w-4 h-4" />,
       onClick: () => {
-        const link = document.createElement('a');
-        link.href = api.getF3dDownloadUrl(archive.id);
-        link.download = `${archive.print_name || archive.filename}.f3d`;
-        link.click();
+        api.downloadF3d(archive.id).catch((err) => {
+          console.error('F3D download failed:', err);
+        });
       },
     },
     {
@@ -1546,10 +1542,9 @@ function ArchiveListRow({
       label: t('archives.menu.download'),
       icon: <Download className="w-4 h-4" />,
       onClick: () => {
-        const link = document.createElement('a');
-        link.href = api.getArchiveDownload(archive.id);
-        link.download = `${archive.print_name || archive.filename}.3mf`;
-        link.click();
+        api.downloadArchive(archive.id, `${archive.print_name || archive.filename}.3mf`).catch((err) => {
+          console.error('Archive download failed:', err);
+        });
       },
       disabled: !hasPermission('archives:read'),
       title: !hasPermission('archives:read') ? t('archives.permission.noDownload') : undefined,
@@ -1785,10 +1780,9 @@ function ArchiveListRow({
             variant="ghost"
             size="sm"
             onClick={() => {
-              const link = document.createElement('a');
-              link.href = api.getArchiveDownload(archive.id);
-              link.download = `${archive.print_name || archive.filename}.3mf`;
-              link.click();
+              api.downloadArchive(archive.id, `${archive.print_name || archive.filename}.3mf`).catch((err) => {
+                console.error('Archive download failed:', err);
+              });
             }}
             title={t('archives.card.download')}
           >

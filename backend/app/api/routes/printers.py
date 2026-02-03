@@ -672,10 +672,11 @@ async def get_printer_cover(
         # Extract thumbnail from 3MF (which is a ZIP file)
         try:
             zf = zipfile.ZipFile(temp_path, "r")
-        except zipfile.BadZipFile as e:
-            raise HTTPException(500, f"Downloaded file is not a valid 3MF/ZIP: {e}")
+        except zipfile.BadZipFile:
+            raise HTTPException(500, "Downloaded file is not a valid 3MF/ZIP archive")
         except Exception as e:
-            raise HTTPException(500, f"Failed to open 3MF file: {e}")
+            logger.error(f"Failed to open 3MF file: {e}", exc_info=True)
+            raise HTTPException(500, "Failed to open 3MF file. Check server logs for details.")
 
         try:
             # Try common thumbnail paths in 3MF files

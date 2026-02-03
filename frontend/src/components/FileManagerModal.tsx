@@ -175,8 +175,10 @@ export function FileManagerModal({ printerId, printerName, onClose }: FileManage
     const paths = Array.from(selectedFiles);
 
     if (paths.length === 1) {
-      // Single file - direct download
-      window.open(api.getPrinterFileDownloadUrl(printerId, paths[0]), '_blank');
+      // Single file - direct download with auth
+      api.downloadPrinterFile(printerId, paths[0]).catch((err) => {
+        console.error('Printer file download failed:', err);
+      });
       setSelectedFiles(new Set());
       return;
     }

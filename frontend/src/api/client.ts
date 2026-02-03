@@ -2063,6 +2063,32 @@ export const api = {
     }>(`/printers/${printerId}/files?path=${encodeURIComponent(path)}`),
   getPrinterFileDownloadUrl: (printerId: number, path: string) =>
     `${API_BASE}/printers/${printerId}/files/download?path=${encodeURIComponent(path)}`,
+  downloadPrinterFile: async (printerId: number, path: string): Promise<void> => {
+    const headers: Record<string, string> = {};
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`;
+    }
+    const response = await fetch(
+      `${API_BASE}/printers/${printerId}/files/download?path=${encodeURIComponent(path)}`,
+      { headers }
+    );
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || `HTTP ${response.status}`);
+    }
+    const disposition = response.headers.get('Content-Disposition');
+    const filenameMatch = disposition?.match(/filename="?([^";\n]+)"?/);
+    const filename = filenameMatch?.[1] || path.split('/').pop() || 'download';
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  },
   downloadPrinterFilesAsZip: async (printerId: number, paths: string[]): Promise<Blob> => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (authToken) {
@@ -2241,6 +2267,29 @@ export const api = {
   getArchivePlateThumbnail: (id: number, plateIndex: number) =>
     `${API_BASE}/archives/${id}/plate-thumbnail/${plateIndex}`,
   getArchiveDownload: (id: number) => `${API_BASE}/archives/${id}/download`,
+  downloadArchive: async (id: number, filename?: string): Promise<void> => {
+    const headers: Record<string, string> = {};
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`;
+    }
+    const response = await fetch(`${API_BASE}/archives/${id}/download`, { headers });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || `HTTP ${response.status}`);
+    }
+    const disposition = response.headers.get('Content-Disposition');
+    const filenameMatch = disposition?.match(/filename="?([^";\n]+)"?/);
+    const downloadFilename = filenameMatch?.[1] || filename || `archive_${id}.3mf`;
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = downloadFilename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  },
   getArchiveGcode: (id: number) => `${API_BASE}/archives/${id}/gcode`,
   getArchivePlatePreview: (id: number) => `${API_BASE}/archives/${id}/plate-preview`,
   getArchiveTimelapse: (id: number) => `${API_BASE}/archives/${id}/timelapse?v=${Date.now()}`,
@@ -2359,6 +2408,29 @@ export const api = {
   // Source 3MF (original slicer project file)
   getSource3mfDownloadUrl: (archiveId: number) =>
     `${API_BASE}/archives/${archiveId}/source`,
+  downloadSource3mf: async (archiveId: number): Promise<void> => {
+    const headers: Record<string, string> = {};
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`;
+    }
+    const response = await fetch(`${API_BASE}/archives/${archiveId}/source`, { headers });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || `HTTP ${response.status}`);
+    }
+    const disposition = response.headers.get('Content-Disposition');
+    const filenameMatch = disposition?.match(/filename="?([^";\n]+)"?/);
+    const filename = filenameMatch?.[1] || `source_${archiveId}.3mf`;
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  },
   getSource3mfForSlicer: (archiveId: number, filename: string) =>
     `${API_BASE}/archives/${archiveId}/source/${encodeURIComponent(filename.endsWith('.3mf') ? filename : filename + '.3mf')}`,
   uploadSource3mf: async (archiveId: number, file: File): Promise<{ status: string; filename: string }> => {
@@ -2386,6 +2458,29 @@ export const api = {
   // F3D (Fusion 360 design file)
   getF3dDownloadUrl: (archiveId: number) =>
     `${API_BASE}/archives/${archiveId}/f3d`,
+  downloadF3d: async (archiveId: number): Promise<void> => {
+    const headers: Record<string, string> = {};
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`;
+    }
+    const response = await fetch(`${API_BASE}/archives/${archiveId}/f3d`, { headers });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || `HTTP ${response.status}`);
+    }
+    const disposition = response.headers.get('Content-Disposition');
+    const filenameMatch = disposition?.match(/filename="?([^";\n]+)"?/);
+    const filename = filenameMatch?.[1] || `archive_${archiveId}.f3d`;
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  },
   uploadF3d: async (archiveId: number, file: File): Promise<{ status: string; filename: string }> => {
     const formData = new FormData();
     formData.append('file', file);
@@ -2574,7 +2669,11 @@ export const api = {
   exportBackup: async (): Promise<{ blob: Blob; filename: string }> => {
     // New simplified backup - complete database + all files
     const url = `${API_BASE}/settings/backup`;
-    const response = await fetch(url);
+    const headers: Record<string, string> = {};
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`;
+    }
+    const response = await fetch(url, { headers });
 
     // Check for errors
     if (!response.ok) {
@@ -3392,6 +3491,29 @@ export const api = {
   deleteLibraryFile: (id: number) =>
     request<{ status: string; message: string }>(`/library/files/${id}`, { method: 'DELETE' }),
   getLibraryFileDownloadUrl: (id: number) => `${API_BASE}/library/files/${id}/download`,
+  downloadLibraryFile: async (id: number, filename?: string): Promise<void> => {
+    const headers: Record<string, string> = {};
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`;
+    }
+    const response = await fetch(`${API_BASE}/library/files/${id}/download`, { headers });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || `HTTP ${response.status}`);
+    }
+    const disposition = response.headers.get('Content-Disposition');
+    const filenameMatch = disposition?.match(/filename="?([^";\n]+)"?/);
+    const downloadFilename = filenameMatch?.[1] || filename || `file_${id}`;
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = downloadFilename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  },
   getLibraryFileThumbnailUrl: (id: number) => `${API_BASE}/library/files/${id}/thumbnail`,
   getLibraryFilePlateThumbnail: (id: number, plateIndex: number) =>
     `${API_BASE}/library/files/${id}/plate-thumbnail/${plateIndex}`,
