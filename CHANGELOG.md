@@ -2,7 +2,10 @@
 
 All notable changes to Bambuddy will be documented in this file.
 
-## [0.1.7b] - Not released
+
+## [0.1.8b] - Not released
+
+## [0.1.7] - 2026-02-03
 
 ### Security
 - **Critical: Missing API Endpoint Authentication** (CVE-2026-25505, CVSS 9.8):
