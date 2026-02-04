@@ -2427,8 +2427,6 @@ async def lifespan(app: FastAPI):
 
         # Restore MQTT smart plug subscriptions
         if mqtt_settings.get("mqtt_enabled"):
-            from sqlalchemy import select
-
             from backend.app.models.smart_plug import SmartPlug
 
             result = await db.execute(select(SmartPlug).where(SmartPlug.plug_type == "mqtt"))
@@ -2668,8 +2666,8 @@ async def auth_middleware(request, call_next):
         )
 
     # Validate JWT token
+    import jwt
     try:
-        import jwt
 
         from backend.app.core.auth import ALGORITHM, SECRET_KEY
 
