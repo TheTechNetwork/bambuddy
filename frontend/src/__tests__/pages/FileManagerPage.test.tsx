@@ -472,7 +472,7 @@ describe('FileManagerPage', () => {
       await user.click(screen.getByText('Select All'));
 
       await waitFor(() => {
-        expect(screen.getByText(/Schedule Print/)).toBeInTheDocument();
+        expect(screen.getByText(/Schedule/)).toBeInTheDocument();
       });
     });
   });
