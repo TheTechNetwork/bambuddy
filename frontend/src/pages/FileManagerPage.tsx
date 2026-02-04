@@ -38,6 +38,7 @@ import {
   Play,
   Image,
   User,
+  Box,
 } from 'lucide-react';
 import { api } from '../api/client';
 import type {
@@ -918,7 +919,7 @@ interface FileCardProps {
   t: TFunction;
 }
 
-function FileCard({ file, isSelected, isMobile, onSelect, onDelete, onDownload, onAddToQueue, onPrint, onRename, onGenerateThumbnail, thumbnailVersion, hasPermission, canModify, authEnabled, t }: FileCardProps) {
+function FileCard({ file, isSelected, isMobile, onSelect, onDelete, onDownload, onAddToQueue, onPrint, onPreview3d, onRename, onGenerateThumbnail, thumbnailVersion, hasPermission, canModify, authEnabled, t }: FileCardProps) {
   const [showActions, setShowActions] = useState(false);
 
   return (
@@ -2327,6 +2328,9 @@ export function FileManagerPage() {
             queryClient.invalidateQueries({ queryKey: ['queue'] });
             queryClient.invalidateQueries({ queryKey: ['archives'] });
           }}
+        />
+      )}
+
       {viewerFile && (
         <ModelViewerModal
           libraryFileId={viewerFile.id}
