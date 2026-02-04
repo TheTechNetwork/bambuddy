@@ -429,7 +429,9 @@ interface UploadFile {
   status: 'pending' | 'uploading' | 'success' | 'error';
   error?: string;
   isZip?: boolean;
+  is3mf?: boolean;
   extractedCount?: number;
+  archiveId?: number;
 }
 
 function UploadModal({ folderId, onClose, onUploadComplete, t }: UploadModalProps) {
@@ -469,6 +471,7 @@ function UploadModal({ folderId, onClose, onUploadComplete, t }: UploadModalProp
       file,
       status: 'pending',
       isZip: file.name.toLowerCase().endsWith('.zip'),
+      is3mf: file.name.toLowerCase().endsWith('.3mf'),
     }));
     setFiles((prev) => [...prev, ...uploadFiles]);
   };
@@ -479,14 +482,56 @@ function UploadModal({ folderId, onClose, onUploadComplete, t }: UploadModalProp
 
   const hasZipFiles = files.some((f) => f.isZip && f.status === 'pending');
   const hasStlFiles = files.some((f) => f.file.name.toLowerCase().endsWith('.stl') && f.status === 'pending');
+  const has3mfFiles = files.some((f) => f.is3mf && f.status === 'pending');
 
   const handleUpload = async () => {
     if (files.length === 0) return;
 
     setIsUploading(true);
 
+    // Handle .3mf files with bulk upload API (advanced extraction)
+    const threemfFiles = files.filter((f) => f.is3mf && f.status === 'pending');
+    if (threemfFiles.length > 0) {
+      try {
+        // Mark files as uploading
+        setFiles((prev) =>
+          prev.map((f) => (f.is3mf && f.status === 'pending' ? { ...f, status: 'uploading' } : f))
+        );
+
+        // Use the archives bulk upload API for .3mf files (extracts printer model)
+        const result = await api.uploadArchivesBulk(threemfFiles.map((f) => f.file));
+
+        // Update file statuses based on result
+        setFiles((prev) =>
+          prev.map((f) => {
+            if (!f.is3mf || f.status !== 'uploading') return f;
+            
+            const success = result.results.find((r) => r.filename === f.file.name);
+            const error = result.errors.find((e) => e.filename === f.file.name);
+            
+            if (success) {
+              return { ...f, status: 'success', archiveId: success.id };
+            }
+            if (error) {
+              return { ...f, status: 'error', error: error.error };
+            }
+            return f;
+          })
+        );
+      } catch (err) {
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.is3mf && f.status === 'uploading'
+              ? { ...f, status: 'error', error: err instanceof Error ? err.message : 'Upload failed' }
+              : f
+          )
+        );
+      }
+    }
+
+    // Handle other files (ZIP and regular files) with library upload
     for (let i = 0; i < files.length; i++) {
-      if (files[i].status !== 'pending') continue;
+      if (files[i].status !== 'pending' || files[i].is3mf) continue;
 
       setFiles((prev) =>
         prev.map((f, idx) => (idx === i ? { ...f, status: 'uploading' } : f))
@@ -509,7 +554,7 @@ function UploadModal({ folderId, onClose, onUploadComplete, t }: UploadModalProp
             )
           );
         } else {
-          // Regular file upload
+          // Regular file upload (STL, etc.)
           await api.uploadLibraryFile(files[i].file, folderId, generateStlThumbnails);
           setFiles((prev) =>
             prev.map((f, idx) => (idx === i ? { ...f, status: 'success' } : f))
@@ -604,6 +649,21 @@ function UploadModal({ folderId, onClose, onUploadComplete, t }: UploadModalProp
                     />
                     <span className="text-sm text-white">{t('fileManager.createFolderFromZip')}</span>
                   </label>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 3MF File Info - Advanced Extraction */}
+          {has3mfFiles && (
+            <div className="p-3 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+              <div className="flex items-start gap-3">
+                <Printer className="w-5 h-5 text-purple-400 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm text-purple-300 font-medium">{t('fileManager.threemfDetected')}</p>
+                  <p className="text-xs text-purple-300/70 mt-1">
+                    {t('fileManager.threemfExtractionInfo')}
+                  </p>
                 </div>
               </div>
             </div>

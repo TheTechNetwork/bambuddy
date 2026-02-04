@@ -1837,6 +1837,8 @@ export default {
     zipMayContainStl: 'ZIP files may contain STL files. Thumbnails can be generated during extraction.',
     thumbnailsCanBeGenerated: 'Thumbnails can be generated for STL files. Large models may take longer to process.',
     generateThumbnailsForStl: 'Generate thumbnails for STL files',
+    threemfDetected: '3MF files detected',
+    threemfExtractionInfo: 'Printer model, material, color, and print settings will be automatically extracted from 3MF files.',
     willBeExtracted: 'Will be extracted',
     filesExtracted: '{{count}} files extracted',
     uploadComplete: 'Upload complete: {{succeeded}} succeeded',

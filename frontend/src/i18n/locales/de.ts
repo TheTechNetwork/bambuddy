@@ -1837,6 +1837,8 @@ export default {
     zipMayContainStl: 'ZIP-Dateien können STL-Dateien enthalten. Vorschaubilder können während der Extraktion generiert werden.',
     thumbnailsCanBeGenerated: 'Vorschaubilder können für STL-Dateien generiert werden. Große Modelle benötigen möglicherweise mehr Zeit.',
     generateThumbnailsForStl: 'Vorschaubilder für STL-Dateien generieren',
+    threemfDetected: '3MF-Dateien erkannt',
+    threemfExtractionInfo: 'Druckermodell, Material, Farbe und Druckeinstellungen werden automatisch aus 3MF-Dateien extrahiert.',
     willBeExtracted: 'Wird extrahiert',
     filesExtracted: '{{count}} Dateien extrahiert',
     uploadComplete: 'Upload abgeschlossen: {{succeeded}} erfolgreich',

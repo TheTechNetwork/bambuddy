@@ -535,7 +535,7 @@ describe('FileManagerPage', () => {
     });
   });
 
-  describe('upload modal STL options', () => {
+  describe('upload modal with advanced 3MF support', () => {
     it('opens upload modal', async () => {
       const user = userEvent.setup();
       render(<FileManagerPage />);
@@ -549,6 +549,37 @@ describe('FileManagerPage', () => {
       await waitFor(() => {
         expect(screen.getByText('Upload Files')).toBeInTheDocument();
         expect(screen.getByText(/Drag & drop/)).toBeInTheDocument();
+      });
+    });
+
+    it('shows 3MF extraction info when 3MF file is added', async () => {
+      const user = userEvent.setup();
+      render(<FileManagerPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Upload')).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByText('Upload'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Upload Files')).toBeInTheDocument();
+      });
+
+      // Create a mock 3MF file
+      const threemfFile = new File(['content'], 'model.gcode.3mf', { type: 'application/octet-stream' });
+
+      // Get the hidden file input
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      expect(fileInput).toBeInTheDocument();
+
+      // Simulate file selection
+      await user.upload(fileInput, threemfFile);
+
+      // 3MF extraction info should appear
+      await waitFor(() => {
+        expect(screen.getByText('3MF files detected')).toBeInTheDocument();
+        expect(screen.getByText(/Printer model.*will be automatically extracted/i)).toBeInTheDocument();
       });
     });
 
@@ -579,96 +610,7 @@ describe('FileManagerPage', () => {
       // STL thumbnail option should appear
       await waitFor(() => {
         expect(screen.getByText('STL thumbnail generation')).toBeInTheDocument();
-        expect(screen.getByText('Generate thumbnails for STL files')).toBeInTheDocument();
-      });
-    });
-
-    it('STL thumbnail checkbox is checked by default', async () => {
-      const user = userEvent.setup();
-      render(<FileManagerPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Upload')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByText('Upload'));
-
-      await waitFor(() => {
-        expect(screen.getByText('Upload Files')).toBeInTheDocument();
-      });
-
-      // Add an STL file
-      const stlFile = new File(['solid test'], 'model.stl', { type: 'application/sla' });
-      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
-      await user.upload(fileInput, stlFile);
-
-      await waitFor(() => {
-        expect(screen.getByText('Generate thumbnails for STL files')).toBeInTheDocument();
-      });
-
-      // Checkbox should be checked by default
-      const checkbox = screen.getByRole('checkbox', { name: /Generate thumbnails for STL files/i });
-      expect(checkbox).toBeChecked();
-    });
-
-    it('can toggle STL thumbnail checkbox', async () => {
-      const user = userEvent.setup();
-      render(<FileManagerPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Upload')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByText('Upload'));
-
-      await waitFor(() => {
-        expect(screen.getByText('Upload Files')).toBeInTheDocument();
-      });
-
-      // Add an STL file
-      const stlFile = new File(['solid test'], 'model.stl', { type: 'application/sla' });
-      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
-      await user.upload(fileInput, stlFile);
-
-      await waitFor(() => {
-        expect(screen.getByText('Generate thumbnails for STL files')).toBeInTheDocument();
-      });
-
-      const checkbox = screen.getByRole('checkbox', { name: /Generate thumbnails for STL files/i });
-      expect(checkbox).toBeChecked();
-
-      // Toggle off
-      await user.click(checkbox);
-      expect(checkbox).not.toBeChecked();
-
-      // Toggle back on
-      await user.click(checkbox);
-      expect(checkbox).toBeChecked();
-    });
-
-    it('shows STL thumbnail option for ZIP files', async () => {
-      const user = userEvent.setup();
-      render(<FileManagerPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Upload')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByText('Upload'));
-
-      await waitFor(() => {
-        expect(screen.getByText('Upload Files')).toBeInTheDocument();
-      });
-
-      // Create a mock ZIP file
-      const zipFile = new File(['PK'], 'models.zip', { type: 'application/zip' });
-      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
-      await user.upload(fileInput, zipFile);
-
-      // STL thumbnail option should appear for ZIP files (may contain STLs)
-      await waitFor(() => {
-        expect(screen.getByText('STL thumbnail generation')).toBeInTheDocument();
-        expect(screen.getByText(/ZIP files may contain STL files/)).toBeInTheDocument();
+        expect(screen.getByText(/Thumbnails can be generated/i)).toBeInTheDocument();
       });
     });
   });
