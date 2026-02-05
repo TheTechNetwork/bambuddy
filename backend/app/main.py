@@ -1,9 +1,9 @@
 import asyncio
+import json
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from logging.handlers import RotatingFileHandler
-from pathlib import Path
 
 
 # =============================================================================
@@ -419,7 +419,7 @@ async def _store_spoolman_print_data(printer_id: int, archive_id: int, file_path
     if slot_to_tray:
         logger.debug(f"[SPOOLMAN] Custom slot mapping: {slot_to_tray}")
     if layer_usage_json:
-        logger.debug(f"[SPOOLMAN] Layer usage data available for partial tracking")
+        logger.debug("[SPOOLMAN] Layer usage data available for partial tracking")
 
 
 async def _cleanup_spoolman_tracking(printer_id: int, archive_id: int, db, logger):

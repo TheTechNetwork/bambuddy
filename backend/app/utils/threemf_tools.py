@@ -198,7 +198,7 @@ def get_cumulative_usage_at_layer(
 
     # Find the highest recorded layer <= target_layer
     # (we store snapshots at layer changes, so we need the closest one)
-    relevant_layers = [layer for layer in layer_usage.keys() if layer <= target_layer]
+    relevant_layers = [layer for layer in layer_usage if layer <= target_layer]
     if not relevant_layers:
         return {}
 

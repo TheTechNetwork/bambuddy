@@ -57,59 +57,67 @@ class TestSpoolmanClient:
     @pytest.mark.asyncio
     async def test_sync_ams_tray_updates_weight_by_default(self, client, sample_tray, existing_spool):
         """Verify sync_ams_tray updates remaining_weight by default."""
-        with patch.object(client, "find_spool_by_tag", AsyncMock(return_value=existing_spool)):
-            with patch.object(client, "update_spool", AsyncMock(return_value={"id": 42})) as mock_update:
-                await client.sync_ams_tray(sample_tray, "TestPrinter")
+        with (
+            patch.object(client, "find_spool_by_tag", AsyncMock(return_value=existing_spool)),
+            patch.object(client, "update_spool", AsyncMock(return_value={"id": 42})) as mock_update,
+        ):
+            await client.sync_ams_tray(sample_tray, "TestPrinter")
 
-                mock_update.assert_called_once()
-                call_kwargs = mock_update.call_args.kwargs
-                assert "remaining_weight" in call_kwargs
-                assert call_kwargs["remaining_weight"] == 500.0  # 50% of 1000g
-                assert "location" in call_kwargs
+            mock_update.assert_called_once()
+            call_kwargs = mock_update.call_args.kwargs
+            assert "remaining_weight" in call_kwargs
+            assert call_kwargs["remaining_weight"] == 500.0  # 50% of 1000g
+            assert "location" in call_kwargs
 
     @pytest.mark.asyncio
     async def test_sync_ams_tray_skips_weight_when_disabled(self, client, sample_tray, existing_spool):
         """Verify sync_ams_tray skips remaining_weight when disable_weight_sync=True."""
-        with patch.object(client, "find_spool_by_tag", AsyncMock(return_value=existing_spool)):
-            with patch.object(client, "update_spool", AsyncMock(return_value={"id": 42})) as mock_update:
-                await client.sync_ams_tray(sample_tray, "TestPrinter", disable_weight_sync=True)
+        with (
+            patch.object(client, "find_spool_by_tag", AsyncMock(return_value=existing_spool)),
+            patch.object(client, "update_spool", AsyncMock(return_value={"id": 42})) as mock_update,
+        ):
+            await client.sync_ams_tray(sample_tray, "TestPrinter", disable_weight_sync=True)
 
-                mock_update.assert_called_once()
-                call_kwargs = mock_update.call_args.kwargs
-                # remaining_weight should be None (not updated)
-                assert call_kwargs.get("remaining_weight") is None
-                # location should still be updated
-                assert "location" in call_kwargs
-                assert "TestPrinter" in call_kwargs["location"]
+            mock_update.assert_called_once()
+            call_kwargs = mock_update.call_args.kwargs
+            # remaining_weight should be None (not updated)
+            assert call_kwargs.get("remaining_weight") is None
+            # location should still be updated
+            assert "location" in call_kwargs
+            assert "TestPrinter" in call_kwargs["location"]
 
     @pytest.mark.asyncio
     async def test_sync_ams_tray_new_spool_always_includes_weight(
         self, client, sample_tray, mock_filament
     ):
         """Verify new spool creation always includes remaining_weight even when disabled."""
-        with patch.object(client, "find_spool_by_tag", AsyncMock(return_value=None)):
-            with patch.object(client, "_find_or_create_filament", AsyncMock(return_value=mock_filament)):
-                with patch.object(client, "create_spool", AsyncMock(return_value={"id": 99})) as mock_create:
-                    await client.sync_ams_tray(sample_tray, "TestPrinter", disable_weight_sync=True)
+        with (
+            patch.object(client, "find_spool_by_tag", AsyncMock(return_value=None)),
+            patch.object(client, "_find_or_create_filament", AsyncMock(return_value=mock_filament)),
+            patch.object(client, "create_spool", AsyncMock(return_value={"id": 99})) as mock_create,
+        ):
+            await client.sync_ams_tray(sample_tray, "TestPrinter", disable_weight_sync=True)
 
-                    mock_create.assert_called_once()
-                    call_kwargs = mock_create.call_args.kwargs
-                    # New spools should ALWAYS include remaining_weight
-                    assert "remaining_weight" in call_kwargs
-                    assert call_kwargs["remaining_weight"] == 500.0  # 50% of 1000g
+            mock_create.assert_called_once()
+            call_kwargs = mock_create.call_args.kwargs
+            # New spools should ALWAYS include remaining_weight
+            assert "remaining_weight" in call_kwargs
+            assert call_kwargs["remaining_weight"] == 500.0  # 50% of 1000g
 
     @pytest.mark.asyncio
     async def test_sync_ams_tray_location_format(self, client, sample_tray, existing_spool):
         """Verify location format is correct when updating spool."""
-        with patch.object(client, "find_spool_by_tag", AsyncMock(return_value=existing_spool)):
-            with patch.object(client, "update_spool", AsyncMock(return_value={"id": 42})) as mock_update:
-                await client.sync_ams_tray(sample_tray, "My Printer", disable_weight_sync=True)
+        with (
+            patch.object(client, "find_spool_by_tag", AsyncMock(return_value=existing_spool)),
+            patch.object(client, "update_spool", AsyncMock(return_value={"id": 42})) as mock_update,
+        ):
+            await client.sync_ams_tray(sample_tray, "My Printer", disable_weight_sync=True)
 
-                call_kwargs = mock_update.call_args.kwargs
-                # Location should follow pattern: "PrinterName - AMS A1"
-                assert "location" in call_kwargs
-                assert "My Printer" in call_kwargs["location"]
-                assert "AMS" in call_kwargs["location"]
+            call_kwargs = mock_update.call_args.kwargs
+            # Location should follow pattern: "PrinterName - AMS A1"
+            assert "location" in call_kwargs
+            assert "My Printer" in call_kwargs["location"]
+            assert "AMS" in call_kwargs["location"]
 
     @pytest.mark.asyncio
     async def test_sync_ams_tray_skips_non_bambu_spool(self, client):
@@ -156,11 +164,13 @@ class TestSpoolmanClient:
                 tray_weight=weight,
             )
 
-            with patch.object(client, "find_spool_by_tag", AsyncMock(return_value=existing_spool)):
-                with patch.object(client, "update_spool", AsyncMock(return_value={"id": 42})) as mock_update:
-                    await client.sync_ams_tray(tray, "TestPrinter", disable_weight_sync=False)
+            with (
+                patch.object(client, "find_spool_by_tag", AsyncMock(return_value=existing_spool)),
+                patch.object(client, "update_spool", AsyncMock(return_value={"id": 42})) as mock_update,
+            ):
+                await client.sync_ams_tray(tray, "TestPrinter", disable_weight_sync=False)
 
-                    call_kwargs = mock_update.call_args.kwargs
-                    assert call_kwargs["remaining_weight"] == expected, (
-                        f"Expected {expected}g for {remain}% of {weight}g, got {call_kwargs['remaining_weight']}"
-                    )
+                call_kwargs = mock_update.call_args.kwargs
+                assert call_kwargs["remaining_weight"] == expected, (
+                    f"Expected {expected}g for {remain}% of {weight}g, got {call_kwargs['remaining_weight']}"
+                )
