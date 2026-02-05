@@ -38,7 +38,6 @@ ignore = [
     "SIM108", # ternary operator (readability preference)
     "SIM102", # nested if (readability preference)
     "SIM105", # contextlib.suppress (readability preference)
-    "UP038",  # isinstance tuple syntax (readability preference)
 ]
 
 # Allow autofix for all enabled rules
