@@ -76,7 +76,7 @@ def _start_error_server(missing_packages: list):
     print(f"\nStarting error server on http://0.0.0.0:{port}")
     print("Visit this URL in your browser to see the error details.\n")
 
-    server = HTTPServer(("0.0.0.0", port), ErrorHandler)  # nosec B104 - intentional bind-all for container
+    server = HTTPServer(("0.0.0.0", port), ErrorHandler)  # nosec B104
 
     def shutdown(signum, frame):
         print("\nShutting down error server...")

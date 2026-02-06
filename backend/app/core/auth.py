@@ -75,7 +75,7 @@ def _get_jwt_secret() -> str:
         # Note: CodeQL flags this as "clear-text storage of sensitive information" but this is
         # intentional and secure - JWT secrets must be readable by the app, we set 0600 permissions,
         # and this is standard practice for self-hosted applications (same as .env files).
-        secret_file.write_text(new_secret)  # nosec B105 - intentional secure storage
+        secret_file.write_text(new_secret)  # nosec B105
         # Restrict permissions (owner read/write only)
         secret_file.chmod(0o600)
         logger.info("Generated new JWT secret and saved to %s", secret_file)

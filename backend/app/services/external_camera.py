@@ -59,7 +59,7 @@ def _sanitize_camera_url(url: str, allowed_schemes: tuple[str, ...] = ("http", "
             "localhost",  # Block localhost to prevent internal service access
             "127.0.0.1",
             "::1",
-            "0.0.0.0",  # nosec B104 - SSRF blocklist, not a bind
+            "0.0.0.0",  # nosec B104
         )
         if hostname_lower in blocked_hosts:
             logger.warning("Blocked camera URL targeting restricted host: %s", hostname)

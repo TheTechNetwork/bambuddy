@@ -250,7 +250,7 @@ class SimpleMQTTServer:
 
             self._server = await asyncio.start_server(
                 connection_handler,
-                "0.0.0.0",  # nosec B104 - virtual printer proxy
+                "0.0.0.0",  # nosec B104
                 self.port,
                 ssl=ssl_context,
             )

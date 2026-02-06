@@ -217,7 +217,7 @@ class FTPSession:
             # Create data server with TLS - use same context for session reuse
             self.data_server = await asyncio.start_server(
                 self._handle_data_connection,
-                "0.0.0.0",  # nosec B104 - virtual printer proxy
+                "0.0.0.0",  # nosec B104
                 self.data_port,
                 ssl=self.ssl_context,
             )
@@ -251,7 +251,7 @@ class FTPSession:
             # Create data server with TLS
             self.data_server = await asyncio.start_server(
                 self._handle_data_connection,
-                "0.0.0.0",  # nosec B104 - virtual printer proxy
+                "0.0.0.0",  # nosec B104
                 self.data_port,
                 ssl=self.ssl_context,
             )
@@ -514,7 +514,7 @@ class VirtualPrinterFTPServer:
             # Create server with SSL - TLS handshake happens before any FTP data
             self._server = await asyncio.start_server(
                 self._handle_client,
-                "0.0.0.0",  # nosec B104 - virtual printer proxy
+                "0.0.0.0",  # nosec B104
                 self.port,
                 ssl=self._ssl_context,  # This makes it implicit FTPS!
             )

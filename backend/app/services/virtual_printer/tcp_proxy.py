@@ -102,7 +102,7 @@ class TLSProxy:
             # Start server with TLS
             self._server = await asyncio.start_server(
                 self._handle_client,
-                "0.0.0.0",  # nosec B104 - virtual printer proxy
+                "0.0.0.0",  # nosec B104
                 self.listen_port,
                 ssl=self._server_ssl_context,
             )

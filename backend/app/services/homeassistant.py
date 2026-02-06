@@ -194,7 +194,7 @@ class HomeAssistantService:
             return None
         if parsed.scheme not in ("http", "https") or not parsed.hostname:
             return None
-        blocked = ("169.254.169.254", "metadata.google.internal", "0.0.0.0")
+        blocked = ("169.254.169.254", "metadata.google.internal", "0.0.0.0")  # nosec B104
         if parsed.hostname.lower() in blocked or (parsed.hostname or "").startswith("169.254."):
             return None
         return f"{parsed.scheme}://{parsed.hostname}" + (f":{parsed.port}" if parsed.port else "") + (parsed.path or "")
