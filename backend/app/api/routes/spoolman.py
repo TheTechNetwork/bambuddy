@@ -220,8 +220,15 @@ async def sync_printer_ams(
     # OPTIMIZATION: Fetch all spools once before processing trays
     # This eliminates redundant API calls (one per tray) when syncing multiple trays
     logger.debug("[Printer %s] Fetching spools cache for sync...", printer.name)
-    cached_spools = await client.get_spools()
-    logger.debug("[Printer %s] Cached %d spools for batch sync", printer.name, len(cached_spools))
+    try:
+        cached_spools = await client.get_spools()
+        logger.debug("[Printer %s] Cached %d spools for batch sync", printer.name, len(cached_spools))
+    except Exception as e:
+        logger.error("[Printer %s] Failed to fetch spools cache after retries: %s", printer.name, e)
+        raise HTTPException(
+            status_code=503,
+            detail=f"Failed to connect to Spoolman after multiple retries: {str(e)}",
+        )
 
     for ams_unit in ams_units:
         if not isinstance(ams_unit, dict):
@@ -342,8 +349,15 @@ async def sync_all_printers(
     # OPTIMIZATION: Fetch all spools once before processing ALL printers/trays
     # This eliminates redundant API calls across all printers
     logger.debug("Fetching spools cache for sync-all operation...")
-    cached_spools = await client.get_spools()
-    logger.debug("Cached %d spools for batch sync across %d printers", len(cached_spools), len(printers))
+    try:
+        cached_spools = await client.get_spools()
+        logger.debug("Cached %d spools for batch sync across %d printers", len(cached_spools), len(printers))
+    except Exception as e:
+        logger.error("Failed to fetch spools cache after retries: %s", e)
+        raise HTTPException(
+            status_code=503,
+            detail=f"Failed to connect to Spoolman after multiple retries: {str(e)}",
+        )
 
     for printer in printers:
         state = printer_manager.get_status(printer.id)

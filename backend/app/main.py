@@ -560,8 +560,16 @@ async def on_ams_change(printer_id: int, ams_data: list):
             # OPTIMIZATION: Fetch all spools once before processing trays
             # This eliminates redundant API calls (one per tray) when syncing multiple trays
             logger.debug("[Printer %s] Fetching spools cache for AMS sync...", printer_id)
-            cached_spools = await client.get_spools()
-            logger.debug("[Printer %s] Cached %d spools for batch sync", printer_id, len(cached_spools))
+            try:
+                cached_spools = await client.get_spools()
+                logger.debug("[Printer %s] Cached %d spools for batch sync", printer_id, len(cached_spools))
+            except Exception as e:
+                logger.error(
+                    "[Printer %s] Failed to fetch spools cache after retries, aborting AMS sync: %s",
+                    printer_id,
+                    e,
+                )
+                return
 
             # Sync each AMS tray
             synced = 0

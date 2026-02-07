@@ -4,7 +4,7 @@ These tests specifically target the sync_ams_tray method's disable_weight_sync
 functionality that controls whether remaining_weight is updated.
 """
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -250,3 +250,127 @@ class TestSpoolmanClient:
             call_kwargs = mock_update.call_args.kwargs
             assert call_kwargs["spool_id"] == 3
             assert call_kwargs.get("clear_location") is True
+
+    # ========================================================================
+    # Tests for retry logic in get_spools
+    # ========================================================================
+
+    @pytest.mark.asyncio
+    async def test_get_spools_succeeds_on_first_attempt(self, client):
+        """Verify get_spools succeeds immediately when no errors occur."""
+        mock_spools = [{"id": 1}, {"id": 2}]
+
+        with patch.object(client, "_get_client") as mock_get_client:
+            mock_http_client = AsyncMock()
+            mock_response = Mock()
+            mock_response.raise_for_status = Mock()
+            mock_response.json = Mock(return_value=mock_spools)
+            mock_http_client.get = AsyncMock(return_value=mock_response)
+            mock_get_client.return_value = mock_http_client
+
+            result = await client.get_spools()
+
+            assert result == mock_spools
+            mock_get_client.assert_called_once()
+            mock_http_client.get.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_spools_retries_on_connection_error(self, client):
+        """Verify get_spools retries up to 3 times on connection errors."""
+        import httpx
+
+        mock_spools = [{"id": 1}]
+
+        with (
+            patch.object(client, "_get_client") as mock_get_client,
+            patch.object(client, "close", AsyncMock()) as mock_close,
+            patch("asyncio.sleep", AsyncMock()) as mock_sleep,
+        ):
+            mock_http_client = AsyncMock()
+            mock_get_client.return_value = mock_http_client
+
+            # First 2 attempts fail with ReadError, 3rd succeeds
+            mock_response = Mock()
+            mock_response.raise_for_status = Mock()
+            mock_response.json = Mock(return_value=mock_spools)
+
+            mock_http_client.get = AsyncMock(
+                side_effect=[
+                    httpx.ReadError("Connection closed"),
+                    httpx.ReadError("Connection closed"),
+                    mock_response,
+                ]
+            )
+
+            result = await client.get_spools()
+
+            assert result == mock_spools
+            assert mock_get_client.call_count == 3
+            assert mock_http_client.get.call_count == 3
+            # Should close client twice (after each failed attempt)
+            assert mock_close.call_count == 2
+            # Should sleep twice (after first 2 attempts)
+            assert mock_sleep.call_count == 2
+            mock_sleep.assert_called_with(0.5)
+
+    @pytest.mark.asyncio
+    async def test_get_spools_raises_after_3_failed_attempts(self, client):
+        """Verify get_spools raises exception after 3 failed attempts."""
+        import httpx
+
+        with (
+            patch.object(client, "_get_client", AsyncMock()) as mock_get_client,
+            patch.object(client, "close", AsyncMock()) as mock_close,
+            patch("asyncio.sleep", AsyncMock()) as mock_sleep,
+        ):
+            mock_http_client = AsyncMock()
+            mock_get_client.return_value = mock_http_client
+
+            # All 3 attempts fail
+            mock_http_client.get.side_effect = httpx.ReadError("Connection closed")
+
+            with pytest.raises(httpx.ReadError):
+                await client.get_spools()
+
+            assert mock_get_client.call_count == 3
+            assert mock_http_client.get.call_count == 3
+            # Should close client twice (after first 2 failed attempts, not after 3rd)
+            assert mock_close.call_count == 2
+            # Should sleep twice (after first 2 attempts, not after 3rd)
+            assert mock_sleep.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_get_spools_handles_non_connection_errors(self, client):
+        """Verify get_spools retries on non-connection errors without recreating client."""
+        import httpx
+
+        mock_spools = [{"id": 1}]
+
+        with (
+            patch.object(client, "_get_client") as mock_get_client,
+            patch.object(client, "close", AsyncMock()) as mock_close,
+            patch("asyncio.sleep", AsyncMock()) as mock_sleep,
+        ):
+            mock_http_client = AsyncMock()
+            mock_get_client.return_value = mock_http_client
+
+            # First attempt fails with HTTP error, 2nd succeeds
+            mock_response_error = Mock()
+            mock_response_error.raise_for_status = Mock(
+                side_effect=httpx.HTTPStatusError("500 Server Error", request=Mock(), response=Mock())
+            )
+
+            mock_response_success = Mock()
+            mock_response_success.raise_for_status = Mock()
+            mock_response_success.json = Mock(return_value=mock_spools)
+
+            mock_http_client.get = AsyncMock(side_effect=[mock_response_error, mock_response_success])
+
+            result = await client.get_spools()
+
+            assert result == mock_spools
+            assert mock_get_client.call_count == 2
+            # Should NOT close client for HTTP errors (only connection errors)
+            mock_close.assert_not_called()
+            # Should sleep once (after first failed attempt)
+            assert mock_sleep.call_count == 1

@@ -1,5 +1,6 @@
 """Spoolman integration service for syncing AMS filament data."""
 
+import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -68,9 +69,22 @@ class SpoolmanClient:
         self._connected = False
 
     async def _get_client(self) -> httpx.AsyncClient:
-        """Get or create the HTTP client."""
+        """Get or create the HTTP client with connection pooling limits.
+
+        Configures the client to prevent idle connection issues:
+        - max_keepalive_connections=5: Limit number of persistent connections
+        - keepalive_expiry=30: Close idle connections after 30 seconds
+        - max_connections=10: Limit total connections to prevent resource exhaustion
+        """
         if self._client is None:
-            self._client = httpx.AsyncClient(timeout=10.0)
+            self._client = httpx.AsyncClient(
+                timeout=10.0,
+                limits=httpx.Limits(
+                    max_keepalive_connections=5,
+                    max_connections=10,
+                    keepalive_expiry=30.0,
+                ),
+            )
         return self._client
 
     async def close(self):
@@ -101,19 +115,59 @@ class SpoolmanClient:
         return self._connected
 
     async def get_spools(self) -> list[dict]:
-        """Get all spools from Spoolman.
+        """Get all spools from Spoolman with retry logic.
+
+        Attempts to fetch spools up to 3 times with 500ms delay between attempts.
+        This handles transient network errors like closed connections.
 
         Returns:
             List of spool dictionaries.
+
+        Raises:
+            Exception: If all 3 retry attempts fail.
         """
-        try:
-            client = await self._get_client()
-            response = await client.get(f"{self.api_url}/spool")
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            logger.error("Failed to get spools from Spoolman: %s", e)
-            return []
+        max_attempts = 3
+        retry_delay = 0.5  # 500ms
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                client = await self._get_client()
+                response = await client.get(f"{self.api_url}/spool")
+                response.raise_for_status()
+                spools = response.json()
+                if attempt > 1:
+                    logger.info("Successfully fetched %d spools on attempt %d", len(spools), attempt)
+                return spools
+            except (httpx.ReadError, httpx.RemoteProtocolError, httpx.ConnectError) as e:
+                # Connection-related errors - close and recreate client for next attempt
+                if attempt < max_attempts:
+                    logger.warning(
+                        "Connection error getting spools (attempt %d/%d): %s. Recreating client and retrying in %dms...",
+                        attempt,
+                        max_attempts,
+                        e,
+                        int(retry_delay * 1000),
+                    )
+                    # Close the stale client and recreate it
+                    await self.close()
+                    await asyncio.sleep(retry_delay)
+                else:
+                    logger.error("Failed to get spools from Spoolman after %d attempts: %s", max_attempts, e)
+                    raise
+            except Exception as e:
+                # Other errors (HTTP errors, JSON decode errors, etc.)
+                if attempt < max_attempts:
+                    logger.warning(
+                        "Failed to get spools from Spoolman (attempt %d/%d): %s. Retrying in %dms...",
+                        attempt,
+                        max_attempts,
+                        e,
+                        int(retry_delay * 1000),
+                    )
+                    await asyncio.sleep(retry_delay)
+                else:
+                    logger.error("Failed to get spools from Spoolman after %d attempts: %s", max_attempts, e)
+                    raise
 
     async def get_filaments(self) -> list[dict]:
         """Get all internal filaments from Spoolman.
