@@ -24,7 +24,8 @@ class LoginResponse(BaseModel):
 
 class UserCreate(BaseModel):
     username: str
-    password: str
+    password: str | None = None  # Optional when advanced auth is enabled
+    email: str | None = None
     role: str = "user"
     group_ids: list[int] | None = None
 
@@ -32,6 +33,7 @@ class UserCreate(BaseModel):
 class UserUpdate(BaseModel):
     username: str | None = None
     password: str | None = None
+    email: str | None = None
     role: str | None = None
     is_active: bool | None = None
     group_ids: list[int] | None = None
@@ -40,6 +42,7 @@ class UserUpdate(BaseModel):
 class UserResponse(BaseModel):
     id: int
     username: str
+    email: str | None = None
     role: str  # Deprecated, kept for backward compatibility
     is_active: bool
     is_admin: bool  # Computed from role and group membership
@@ -65,3 +68,44 @@ class SetupRequest(BaseModel):
 class SetupResponse(BaseModel):
     auth_enabled: bool
     admin_created: bool | None = None
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ForgotPasswordResponse(BaseModel):
+    message: str
+
+
+class ResetPasswordRequest(BaseModel):
+    user_id: int
+
+
+class ResetPasswordResponse(BaseModel):
+    message: str
+
+
+class SMTPSettings(BaseModel):
+    smtp_host: str
+    smtp_port: int
+    smtp_username: str
+    smtp_password: str | None = None  # Optional for read operations
+    smtp_use_tls: bool = True
+    smtp_from_email: str
+    smtp_from_name: str = "BamBuddy"
+
+
+class TestSMTPRequest(BaseModel):
+    smtp_host: str
+    smtp_port: int
+    smtp_username: str
+    smtp_password: str
+    smtp_use_tls: bool = True
+    smtp_from_email: str
+    test_recipient: str
+
+
+class TestSMTPResponse(BaseModel):
+    success: bool
+    message: str

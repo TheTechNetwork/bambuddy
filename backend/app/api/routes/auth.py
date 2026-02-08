@@ -8,16 +8,39 @@ from sqlalchemy.orm import selectinload
 from backend.app.core.auth import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     authenticate_user,
+    authenticate_user_by_email,
     create_access_token,
     get_current_active_user,
     get_password_hash,
+    get_user_by_email,
     get_user_by_username,
 )
 from backend.app.core.database import get_db
 from backend.app.models.group import Group
 from backend.app.models.settings import Settings
 from backend.app.models.user import User
-from backend.app.schemas.auth import GroupBrief, LoginRequest, LoginResponse, SetupRequest, SetupResponse, UserResponse
+from backend.app.schemas.auth import (
+    ForgotPasswordRequest,
+    ForgotPasswordResponse,
+    GroupBrief,
+    LoginRequest,
+    LoginResponse,
+    ResetPasswordRequest,
+    ResetPasswordResponse,
+    SetupRequest,
+    SetupResponse,
+    SMTPSettings,
+    TestSMTPRequest,
+    TestSMTPResponse,
+    UserResponse,
+)
+from backend.app.services.email_service import (
+    create_password_reset_email,
+    generate_secure_password,
+    get_smtp_settings,
+    save_smtp_settings,
+    send_email,
+)
 
 
 def _user_to_response(user: User) -> UserResponse:
@@ -25,6 +48,7 @@ def _user_to_response(user: User) -> UserResponse:
     return UserResponse(
         id=user.id,
         username=user.username,
+        email=user.email,
         role=user.role,
         is_active=user.is_active,
         is_admin=user.is_admin,
@@ -44,6 +68,27 @@ async def is_auth_enabled(db: AsyncSession) -> bool:
     if setting is None:
         return False
     return setting.value.lower() == "true"
+
+
+async def is_advanced_auth_enabled(db: AsyncSession) -> bool:
+    """Check if advanced authentication is enabled."""
+    result = await db.execute(select(Settings).where(Settings.key == "advanced_auth_enabled"))
+    setting = result.scalar_one_or_none()
+    if setting is None:
+        return False
+    return setting.value.lower() == "true"
+
+
+async def set_advanced_auth_enabled(db: AsyncSession, enabled: bool) -> None:
+    """Set advanced authentication enabled status."""
+    from sqlalchemy import func
+    from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+
+    stmt = sqlite_insert(Settings).values(key="advanced_auth_enabled", value="true" if enabled else "false")
+    stmt = stmt.on_conflict_do_update(
+        index_elements=["key"], set_={"value": "true" if enabled else "false", "updated_at": func.now()}
+    )
+    await db.execute(stmt)
 
 
 async def set_auth_enabled(db: AsyncSession, enabled: bool) -> None:
@@ -216,7 +261,10 @@ async def disable_auth(
 
 @router.post("/login", response_model=LoginResponse)
 async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
-    """Login and get access token."""
+    """Login and get access token.
+    
+    Supports username or email-based login. Username lookup is case-insensitive.
+    """
     # Check if auth is enabled
     auth_enabled = await is_auth_enabled(db)
     if not auth_enabled:
@@ -225,7 +273,15 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
             detail="Authentication is not enabled",
         )
 
+    # Try username-based authentication first
     user = await authenticate_user(db, request.username, request.password)
+    
+    # If username auth failed and advanced auth is enabled, try email-based authentication
+    if not user:
+        advanced_auth = await is_advanced_auth_enabled(db)
+        if advanced_auth:
+            user = await authenticate_user_by_email(db, request.username, request.password)
+    
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -263,3 +319,331 @@ async def get_current_user_info(
 async def logout():
     """Logout (client should discard token)."""
     return {"message": "Logged out successfully"}
+
+
+# Advanced Authentication Endpoints
+
+
+@router.post("/smtp/test", response_model=TestSMTPResponse)
+async def test_smtp_connection(
+    test_request: TestSMTPRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Test SMTP connection with provided settings (admin only)."""
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    # Reload user with groups for proper is_admin check
+    result = await db.execute(select(User).where(User.id == current_user.id).options(selectinload(User.groups)))
+    user = result.scalar_one()
+
+    if not user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can test SMTP settings",
+        )
+
+    try:
+        smtp_settings = SMTPSettings(
+            smtp_host=test_request.smtp_host,
+            smtp_port=test_request.smtp_port,
+            smtp_username=test_request.smtp_username,
+            smtp_password=test_request.smtp_password,
+            smtp_use_tls=test_request.smtp_use_tls,
+            smtp_from_email=test_request.smtp_from_email,
+        )
+
+        # Send test email
+        send_email(
+            smtp_settings=smtp_settings,
+            to_email=test_request.test_recipient,
+            subject="BamBuddy SMTP Test",
+            body_text="This is a test email from BamBuddy. If you received this, your SMTP settings are working correctly!",
+            body_html="<p>This is a test email from <strong>BamBuddy</strong>.</p><p>If you received this, your SMTP settings are working correctly!</p>",
+        )
+
+        logger.info(f"Test email sent successfully to {test_request.test_recipient}")
+        return TestSMTPResponse(success=True, message="Test email sent successfully")
+    except Exception as e:
+        logger.error(f"Failed to send test email: {e}")
+        return TestSMTPResponse(success=False, message=f"Failed to send test email: {str(e)}")
+
+
+@router.get("/smtp", response_model=SMTPSettings | None)
+async def get_smtp_config(
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get SMTP settings (admin only). Password is not returned."""
+    # Reload user with groups for proper is_admin check
+    result = await db.execute(select(User).where(User.id == current_user.id).options(selectinload(User.groups)))
+    user = result.scalar_one()
+
+    if not user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can view SMTP settings",
+        )
+
+    smtp_settings = await get_smtp_settings(db)
+    if smtp_settings:
+        # Don't return password in response
+        smtp_settings.smtp_password = None
+    return smtp_settings
+
+
+@router.post("/smtp", response_model=dict)
+async def save_smtp_config(
+    smtp_settings: SMTPSettings,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Save SMTP settings (admin only)."""
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    # Reload user with groups for proper is_admin check
+    result = await db.execute(select(User).where(User.id == current_user.id).options(selectinload(User.groups)))
+    user = result.scalar_one()
+
+    if not user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can update SMTP settings",
+        )
+
+    try:
+        await save_smtp_settings(db, smtp_settings)
+        await db.commit()
+        logger.info(f"SMTP settings updated by admin user: {user.username}")
+        return {"message": "SMTP settings saved successfully"}
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to save SMTP settings: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to save SMTP settings: {str(e)}",
+        )
+
+
+@router.post("/advanced-auth/enable", response_model=dict)
+async def enable_advanced_auth(
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Enable advanced authentication (admin only).
+    
+    Requires SMTP settings to be configured and tested first.
+    """
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    # Reload user with groups for proper is_admin check
+    result = await db.execute(select(User).where(User.id == current_user.id).options(selectinload(User.groups)))
+    user = result.scalar_one()
+
+    if not user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can enable advanced authentication",
+        )
+
+    # Verify SMTP settings are configured
+    smtp_settings = await get_smtp_settings(db)
+    if not smtp_settings:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="SMTP settings must be configured before enabling advanced authentication",
+        )
+
+    try:
+        await set_advanced_auth_enabled(db, True)
+        await db.commit()
+        logger.info(f"Advanced authentication enabled by admin user: {user.username}")
+        return {"message": "Advanced authentication enabled successfully", "advanced_auth_enabled": True}
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to enable advanced authentication: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to enable advanced authentication: {str(e)}",
+        )
+
+
+@router.post("/advanced-auth/disable", response_model=dict)
+async def disable_advanced_auth(
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Disable advanced authentication (admin only)."""
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    # Reload user with groups for proper is_admin check
+    result = await db.execute(select(User).where(User.id == current_user.id).options(selectinload(User.groups)))
+    user = result.scalar_one()
+
+    if not user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can disable advanced authentication",
+        )
+
+    try:
+        await set_advanced_auth_enabled(db, False)
+        await db.commit()
+        logger.info(f"Advanced authentication disabled by admin user: {user.username}")
+        return {"message": "Advanced authentication disabled successfully", "advanced_auth_enabled": False}
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to disable advanced authentication: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to disable advanced authentication: {str(e)}",
+        )
+
+
+@router.get("/advanced-auth/status")
+async def get_advanced_auth_status(db: AsyncSession = Depends(get_db)):
+    """Get advanced authentication status."""
+    advanced_auth_enabled = await is_advanced_auth_enabled(db)
+    smtp_configured = await get_smtp_settings(db) is not None
+    return {
+        "advanced_auth_enabled": advanced_auth_enabled,
+        "smtp_configured": smtp_configured,
+    }
+
+
+@router.post("/forgot-password", response_model=ForgotPasswordResponse)
+async def forgot_password(request: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
+    """Request password reset via email (advanced auth only)."""
+    import logging
+    import os
+
+    logger = logging.getLogger(__name__)
+
+    # Check if advanced auth is enabled
+    advanced_auth = await is_advanced_auth_enabled(db)
+    if not advanced_auth:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Advanced authentication is not enabled",
+        )
+
+    # Get SMTP settings
+    smtp_settings = await get_smtp_settings(db)
+    if not smtp_settings:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Email service is not configured",
+        )
+
+    # Find user by email
+    user = await get_user_by_email(db, request.email)
+    
+    # Always return success message to prevent email enumeration
+    # but only send email if user exists
+    if user and user.is_active:
+        try:
+            # Generate new password
+            new_password = generate_secure_password()
+            user.password_hash = get_password_hash(new_password)
+            await db.commit()
+
+            # Get login URL from environment or use default
+            login_url = os.environ.get("APP_URL", "http://localhost:5173") + "/login"
+
+            # Send password reset email
+            subject, text_body, html_body = create_password_reset_email(user.username, new_password, login_url)
+            send_email(smtp_settings, user.email, subject, text_body, html_body)
+
+            logger.info(f"Password reset email sent to {user.email}")
+        except Exception as e:
+            logger.error(f"Failed to send password reset email: {e}")
+            # Don't reveal error to user for security
+
+    return ForgotPasswordResponse(
+        message="If the email address is associated with an account, a password reset email has been sent."
+    )
+
+
+@router.post("/reset-password", response_model=ResetPasswordResponse)
+async def reset_user_password(
+    request: ResetPasswordRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Reset a user's password and send them an email (admin only, advanced auth only)."""
+    import logging
+    import os
+
+    logger = logging.getLogger(__name__)
+
+    # Reload user with groups for proper is_admin check
+    result = await db.execute(select(User).where(User.id == current_user.id).options(selectinload(User.groups)))
+    admin_user = result.scalar_one()
+
+    if not admin_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can reset user passwords",
+        )
+
+    # Check if advanced auth is enabled
+    advanced_auth = await is_advanced_auth_enabled(db)
+    if not advanced_auth:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Advanced authentication is not enabled",
+        )
+
+    # Get SMTP settings
+    smtp_settings = await get_smtp_settings(db)
+    if not smtp_settings:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Email service is not configured",
+        )
+
+    # Find user to reset
+    result = await db.execute(select(User).where(User.id == request.user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    if not user.email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User does not have an email address configured",
+        )
+
+    try:
+        # Generate new password
+        new_password = generate_secure_password()
+        user.password_hash = get_password_hash(new_password)
+        await db.commit()
+
+        # Get login URL from environment or use default
+        login_url = os.environ.get("APP_URL", "http://localhost:5173") + "/login"
+
+        # Send password reset email
+        subject, text_body, html_body = create_password_reset_email(user.username, new_password, login_url)
+        send_email(smtp_settings, user.email, subject, text_body, html_body)
+
+        logger.info(f"Password reset by admin {admin_user.username} for user {user.username}")
+        return ResetPasswordResponse(message=f"Password reset email sent to {user.email}")
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to reset password for user {user.username}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to reset password: {str(e)}",
+        )
