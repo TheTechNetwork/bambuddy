@@ -26,7 +26,7 @@ services:
       # This ensures the slicer only needs to trust one CA certificate.
       - ./virtual_printer:/app/data/virtual_printer
     environment:
-      - TZ=Europe/Berlin
+      - TZ=${TZ:-Europe/Berlin}
       # Port BamBuddy runs on (default: 8000)
       # Usage: PORT=8080 docker compose up -d
       - PORT=${PORT:-8000}
