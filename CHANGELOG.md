@@ -12,6 +12,9 @@ All notable changes to Bambuddy will be documented in this file.
 - **Home Assistant Environment Variables** ([#283](https://github.com/maziggy/bambuddy/issues/283)) — Configure Home Assistant integration via `HA_URL` and `HA_TOKEN` environment variables for zero-configuration add-on deployments. Auto-enables when both variables are set. UI fields become read-only with lock icons when env-managed. Database values preserved as fallback.
 - **Spoolman Fill Level for AMS Lite / External Spools** ([#293](https://github.com/maziggy/bambuddy/issues/293)) — AMS Lite (no weight sensor) always reported 0% fill level. Now uses Spoolman's remaining weight as a fallback when AMS reports 0%. External spools also show fill level from Spoolman data. Fill bars and hover cards indicate "(Spoolman)" when the data source is Spoolman rather than AMS.
 
+### Improved
+- **Japanese Locale Complete Overhaul** — Restructured `ja.ts` from a divergent format (different key structure, 12 structural conflicts, 1,366 missing translations) to match the English/German locale structure exactly. Translated all 2,083 keys into Japanese, achieving full parity with EN/DE. Zero structural divergences, zero missing keys.
+
 ### Fixed
 - **Camera Stop 401 When Auth Enabled** — Camera stop requests (`sendBeacon`) failed with 401 Unauthorized when authentication was enabled because `sendBeacon` cannot send auth headers. Replaced with `fetch` + `keepalive: true` which supports Authorization headers while remaining reliable during page unload.
 - **Spoolman Creates Duplicate Spools on Startup** ([#295](https://github.com/maziggy/bambuddy/pull/295)) — Each AMS tray independently fetched all spools from Spoolman, causing redundant API calls and duplicate spool creation with large databases (300+ spools). Now fetches spools once and reuses cached data across all tray operations. Added retry logic (3 attempts, 500ms delay) with connection recreation for transient network errors.
@@ -20,6 +23,7 @@ All notable changes to Bambuddy will be documented in this file.
 - **H2D Pro Prints Fail at ~75% With Extrusion Motor Overload** ([#245](https://github.com/maziggy/bambuddy/issues/245)) — H2D Pro firmware interprets `use_ams: 1` (integer) as a nozzle index, routing filament to the deputy nozzle instead of the main nozzle. Bambu Studio sends `use_ams: true` (boolean) while using integers for other fields. Fixed by keeping `use_ams` as boolean for all printers including H2D series.
 
 ### Documentation
+- **CONTRIBUTING.md: i18n & Authentication Guides** — Added Internationalization (i18n) section with locale file conventions, code examples, and parity rules. Added Authentication & Permissions section covering the opt-in auth pattern, permission conventions, and default group structure.
 - **Proxy Mode Security Warning** — Added FTP data channel security warning to wiki, README, and website. Bambu Studio does not encrypt the FTP data channel despite negotiating PROT P; MQTT and FTP control channels are fully TLS-encrypted. VPN (Tailscale/WireGuard) recommended for full data encryption.
 - **Docker Proxy Mode Ports** — Documented FTP passive data ports 50000-50100 required for proxy mode in Docker bridge mode. Updated port mappings in wiki virtual-printer and docker guides.
 - **SSDP Discovery Limitations** — Added table showing when SSDP discovery works (same LAN, dual-homed, Docker host mode) vs when manual IP entry is required (VPN, Docker bridge, port forwarding). Updated wiki, README, and website.
