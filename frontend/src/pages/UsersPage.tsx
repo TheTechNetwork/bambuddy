@@ -10,6 +10,7 @@ import { useToast } from '../contexts/ToastContext';
 import { Button } from '../components/Button';
 import { Card, CardContent, CardHeader } from '../components/Card';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { CreateUserAdvancedAuthModal } from '../components/CreateUserAdvancedAuthModal';
 
 interface FormData extends UserCreate {
   group_ids: number[];
@@ -148,13 +149,19 @@ export function UsersPage() {
     const advancedAuthEnabled = advancedAuthStatus?.advanced_auth_enabled || false;
     
     if (!formData.username) {
-      showToast(t('users.toast.fillRequired'), 'error');
+      const errorMsg = t('users.toast.fillRequired');
+      showToast(errorMsg, 'error');
+      if (advancedAuthEnabled) {
+        console.error('[Advanced Auth] Create user failed: Username is required');
+      }
       return;
     }
     
     // Email is required when advanced auth is enabled
     if (advancedAuthEnabled && !formData.email) {
-      showToast('Email is required when advanced authentication is enabled', 'error');
+      const errorMsg = 'Email is required when advanced authentication is enabled';
+      showToast(errorMsg, 'error');
+      console.error('[Advanced Auth] Create user failed: Email is required when advanced authentication is enabled');
       return;
     }
     
@@ -401,7 +408,7 @@ export function UsersPage() {
       )}
 
       {/* Create User Modal */}
-      {showCreateModal && (
+      {showCreateModal && !advancedAuthStatus?.advanced_auth_enabled && (
         <div
           className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
           onClick={() => {
@@ -446,67 +453,41 @@ export function UsersPage() {
                     autoComplete="username"
                   />
                 </div>
-                {advancedAuthStatus?.advanced_auth_enabled && (
-                  <div>
-                    <label className="block text-sm font-medium text-white mb-2">
-                      {t('users.form.email') || 'Email'}
-                    </label>
-                    <input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full px-4 py-3 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:border-bambu-green transition-colors"
-                      placeholder={t('users.form.emailPlaceholder') || 'user@example.com'}
-                      required={advancedAuthStatus?.advanced_auth_enabled}
-                    />
-                  </div>
-                )}
-                {!advancedAuthStatus?.advanced_auth_enabled && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-white mb-2">
-                        {t('users.form.password')}
-                      </label>
-                      <input
-                        type="password"
-                        value={formData.password}
-                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                        className="w-full px-4 py-3 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:border-bambu-green transition-colors"
-                        placeholder={t('users.form.passwordPlaceholder')}
-                        autoComplete="new-password"
-                        minLength={6}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-white mb-2">
-                        {t('users.form.confirmPassword')}
-                      </label>
-                      <input
-                        type="password"
-                        value={formData.confirmPassword}
-                        onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                        className={`w-full px-4 py-3 bg-bambu-dark-secondary border rounded-lg text-white placeholder-bambu-gray focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:border-bambu-green transition-colors ${
-                          formData.confirmPassword && formData.password !== formData.confirmPassword
-                            ? 'border-red-500'
-                            : 'border-bambu-dark-tertiary'
-                        }`}
-                        placeholder={t('users.form.confirmPasswordPlaceholder')}
-                        autoComplete="new-password"
-                        minLength={6}
-                      />
-                      {formData.confirmPassword && formData.password !== formData.confirmPassword && (
-                        <p className="text-red-400 text-xs mt-1">{t('users.toast.passwordsDoNotMatch')}</p>
-                      )}
-                    </div>
-                  </>
-                )}
-                {advancedAuthStatus?.advanced_auth_enabled && (
-                  <div className="bg-bambu-dark-secondary/50 border border-bambu-green/20 rounded-lg p-3">
-                    <p className="text-sm text-bambu-gray">
-                      {t('users.form.autoGeneratedPassword') || 'A secure password will be automatically generated and emailed to the user.'}
-                    </p>
-                  </div>
-                )}
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">
+                    {t('users.form.password')}
+                  </label>
+                  <input
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className="w-full px-4 py-3 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:border-bambu-green transition-colors"
+                    placeholder={t('users.form.passwordPlaceholder')}
+                    autoComplete="new-password"
+                    minLength={6}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">
+                    {t('users.form.confirmPassword')}
+                  </label>
+                  <input
+                    type="password"
+                    value={formData.confirmPassword}
+                    onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                    className={`w-full px-4 py-3 bg-bambu-dark-secondary border rounded-lg text-white placeholder-bambu-gray focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:border-bambu-green transition-colors ${
+                      formData.confirmPassword && formData.password !== formData.confirmPassword
+                        ? 'border-red-500'
+                        : 'border-bambu-dark-tertiary'
+                    }`}
+                    placeholder={t('users.form.confirmPasswordPlaceholder')}
+                    autoComplete="new-password"
+                    minLength={6}
+                  />
+                  {formData.confirmPassword && formData.password !== formData.confirmPassword && (
+                    <p className="text-red-400 text-xs mt-1">{t('users.toast.passwordsDoNotMatch')}</p>
+                  )}
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">
                     {t('users.form.groups')}
@@ -565,6 +546,22 @@ export function UsersPage() {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* Create User Modal - Advanced Authentication */}
+      {showCreateModal && advancedAuthStatus?.advanced_auth_enabled && (
+        <CreateUserAdvancedAuthModal
+          formData={formData}
+          setFormData={setFormData}
+          groups={groups}
+          onClose={() => {
+            setShowCreateModal(false);
+            setFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
+          }}
+          onCreate={handleCreate}
+          isCreating={createMutation.isPending}
+          isCreateButtonDisabled={isCreateButtonDisabled}
+        />
       )}
 
       {/* Edit User Modal */}
