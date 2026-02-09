@@ -595,9 +595,9 @@ function NozzleRackCard({ slots }: { slots: import('../api/client').NozzleRackSl
   const dockSlots = slots.slice(0, 6);
 
   return (
-    <div className="text-center px-2 py-1.5 bg-bambu-dark rounded-lg flex flex-col justify-center" style={{ minWidth: '80px' }}>
-      <p className="text-[9px] text-bambu-gray mb-0.5">{t('printers.nozzleRack')}</p>
-      <div className="grid grid-cols-3 gap-0.5">
+    <div className="text-center px-2.5 py-1.5 bg-bambu-dark rounded-lg flex-[2] flex flex-col justify-center">
+      <p className="text-[9px] text-bambu-gray mb-1">{t('printers.nozzleRack')}</p>
+      <div className="grid grid-cols-3 gap-1">
         {dockSlots.map((slot, i) => {
           const isEmpty = !slot.nozzle_diameter && !slot.nozzle_type;
           const isMounted = slot.stat === 1;
@@ -608,26 +608,26 @@ function NozzleRackCard({ slots }: { slots: import('../api/client').NozzleRackSl
           return (
             <NozzleSlotHoverCard key={slot.id ?? i} slot={slot} index={i}>
               <div
-                className={`rounded px-0.5 py-0.5 text-center cursor-default ${
+                className={`rounded-md py-1 px-1 text-center cursor-default transition-colors ${
                   isEmpty
-                    ? 'bg-bambu-dark-tertiary/30 opacity-40'
+                    ? 'bg-bambu-dark-tertiary/20 opacity-30'
                     : isMounted
-                      ? 'ring-1 ring-green-500/60'
-                      : 'bg-bambu-dark-tertiary/50'
+                      ? 'ring-1 ring-green-500/70 bg-green-950/40'
+                      : 'bg-bambu-dark-tertiary/40'
                 }`}
-                style={filamentBg && !isEmpty ? { backgroundColor: filamentBg } : (isMounted && !filamentBg ? { backgroundColor: 'rgba(20, 83, 45, 0.4)' } : undefined)}
+                style={filamentBg && !isEmpty ? { backgroundColor: filamentBg } : undefined}
               >
                 {isEmpty ? (
-                  <p className="text-[9px] text-bambu-gray">—</p>
+                  <p className="text-[9px] text-bambu-gray/50">—</p>
                 ) : (
                   <>
-                    <p className={`text-[10px] font-medium ${isMounted ? 'text-green-400' : 'text-white'}`}
-                       style={filamentBg ? { textShadow: '0 1px 2px rgba(0,0,0,0.8)' } : undefined}
+                    <p className={`text-[11px] font-semibold leading-tight ${isMounted ? 'text-green-400' : 'text-white'}`}
+                       style={filamentBg ? { textShadow: '0 1px 3px rgba(0,0,0,0.9)' } : undefined}
                     >
                       {slot.nozzle_diameter || '?'}
                     </p>
                     {typeAbbr && (
-                      <p className="text-[8px] text-bambu-gray leading-none"
+                      <p className="text-[8px] text-bambu-gray/70 leading-none mt-0.5"
                          style={filamentBg ? { textShadow: '0 1px 2px rgba(0,0,0,0.8)' } : undefined}
                       >{typeAbbr}</p>
                     )}
@@ -2199,8 +2199,8 @@ function PrinterCard({
               return (
                 <div className="flex items-stretch gap-1.5">
                   {/* Nozzle temp - combined for dual nozzle */}
-                  <div className="text-center px-2 py-1.5 bg-bambu-dark rounded-lg flex-1">
-                    <HeaterThermometer className="w-3.5 h-3.5 mx-auto mb-0.5" color="text-orange-400" isHeating={nozzleHeating} />
+                  <div className="text-center px-2 py-1.5 bg-bambu-dark rounded-lg flex-1 flex flex-col justify-center items-center">
+                    <HeaterThermometer className="w-3.5 h-3.5 mb-0.5" color="text-orange-400" isHeating={nozzleHeating} />
                     {status.temperatures.nozzle_2 !== undefined ? (
                       <>
                         <p className="text-[9px] text-bambu-gray">L / R</p>
@@ -2217,16 +2217,16 @@ function PrinterCard({
                       </>
                     )}
                   </div>
-                  <div className="text-center px-2 py-1.5 bg-bambu-dark rounded-lg flex-1">
-                    <HeaterThermometer className="w-3.5 h-3.5 mx-auto mb-0.5" color="text-blue-400" isHeating={bedHeating} />
+                  <div className="text-center px-2 py-1.5 bg-bambu-dark rounded-lg flex-1 flex flex-col justify-center items-center">
+                    <HeaterThermometer className="w-3.5 h-3.5 mb-0.5" color="text-blue-400" isHeating={bedHeating} />
                     <p className="text-[9px] text-bambu-gray">{t('printers.temperatures.bed')}</p>
                     <p className="text-[11px] text-white">
                       {Math.round(status.temperatures.bed || 0)}°C
                     </p>
                   </div>
                   {status.temperatures.chamber !== undefined && (
-                    <div className="text-center px-2 py-1.5 bg-bambu-dark rounded-lg flex-1">
-                      <HeaterThermometer className="w-3.5 h-3.5 mx-auto mb-0.5" color="text-green-400" isHeating={chamberHeating} />
+                    <div className="text-center px-2 py-1.5 bg-bambu-dark rounded-lg flex-1 flex flex-col justify-center items-center">
+                      <HeaterThermometer className="w-3.5 h-3.5 mb-0.5" color="text-green-400" isHeating={chamberHeating} />
                       <p className="text-[9px] text-bambu-gray">{t('printers.temperatures.chamber')}</p>
                       <p className="text-[11px] text-white">
                         {Math.round(status.temperatures.chamber || 0)}°C
@@ -2235,7 +2235,7 @@ function PrinterCard({
                   )}
                   {/* Active nozzle indicator for dual-nozzle printers */}
                   {isDualNozzle && (
-                    <div className="text-center px-2 py-1.5 bg-bambu-dark rounded-lg" title={t('printers.activeNozzle', { nozzle: activeNozzle === 'L' ? t('common.left') : t('common.right') })}>
+                    <div className="text-center px-2 py-1.5 bg-bambu-dark rounded-lg flex flex-col justify-center items-center" title={t('printers.activeNozzle', { nozzle: activeNozzle === 'L' ? t('common.left') : t('common.right') })}>
                       <p className={`text-[11px] font-bold ${activeNozzle === 'L' ? 'text-amber-400' : 'text-gray-500'}`}>L</p>
                       <p className="text-[9px] text-bambu-gray">{t('printers.temperatures.nozzle')}</p>
                       <p className={`text-[11px] font-bold ${activeNozzle === 'R' ? 'text-amber-400' : 'text-gray-500'}`}>R</p>
