@@ -208,6 +208,13 @@ export default {
     mqttDebug: 'MQTT Debug',
     activeNozzle: 'Active: {{nozzle}} nozzle',
     nozzleRack: 'Nozzle Rack',
+    nozzleDocked: 'Docked',
+    nozzleMounted: 'Mounted',
+    nozzleWear: 'Wear',
+    nozzleMaxTemp: 'Max Temp',
+    nozzleSerial: 'Serial',
+    nozzleHardenedSteel: 'Hardened Steel',
+    nozzleStainlessSteel: 'Stainless Steel',
     // Firmware
     firmwareUpdate: 'Firmware Update',
     firmwareInstructions: 'On the printer\'s touchscreen, go to',

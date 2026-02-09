@@ -192,6 +192,13 @@ export default {
     mqttDebug: 'MQTTデバッグ',
     activeNozzle: 'アクティブ: {{side}}ノズル',
     nozzleRack: 'ノズルラック',
+    nozzleDocked: 'ドッキング中',
+    nozzleMounted: 'マウント中',
+    nozzleWear: '摩耗',
+    nozzleMaxTemp: '最高温度',
+    nozzleSerial: 'シリアル',
+    nozzleHardenedSteel: '焼入れ鋼',
+    nozzleStainlessSteel: 'ステンレス鋼',
     toast: {
       printStopped: '印刷を停止しました',
       printPaused: '印刷を一時停止しました',

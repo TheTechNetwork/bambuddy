@@ -208,6 +208,13 @@ export default {
     mqttDebug: 'Debug MQTT',
     activeNozzle: 'Attivo: ugello {{nozzle}}',
     nozzleRack: 'Rack Ugelli',
+    nozzleDocked: 'Agganciato',
+    nozzleMounted: 'Montato',
+    nozzleWear: 'Usura',
+    nozzleMaxTemp: 'Temp Max',
+    nozzleSerial: 'Seriale',
+    nozzleHardenedSteel: 'Acciaio Temprato',
+    nozzleStainlessSteel: 'Acciaio Inox',
     // Firmware
     firmwareUpdate: 'Aggiornamento Firmware',
     firmwareInstructions: 'Sul touchscreen della stampante, vai a',

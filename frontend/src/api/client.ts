@@ -135,6 +135,10 @@ export interface NozzleRackSlot {
   nozzle_diameter: string;
   wear: number | null;
   stat: number | null;  // Nozzle status (e.g. mounted/docked)
+  max_temp: number;
+  serial_number: string;
+  filament_color: string;  // RGBA hex ("00000000" = no filament)
+  filament_id: string;
 }
 
 export interface PrintOptions {

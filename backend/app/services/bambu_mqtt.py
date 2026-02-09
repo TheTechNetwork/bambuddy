@@ -1757,9 +1757,20 @@ class BambuMQTTClient:
                             "diameter": str(n.get("diameter", "")),
                             "wear": n.get("wear"),
                             "stat": n.get("stat"),
+                            "max_temp": n.get("max_temp", 0),
+                            "serial_number": str(n.get("serial_number", "")),
+                            "filament_color": str(n.get("filament_colour", "")),
+                            "filament_id": str(n.get("filament_id", "")),
                         }
                         for i, n in enumerate(nozzle_info)
                     ]
+                    if not hasattr(self, "_nozzle_rack_logged") and nozzle_info:
+                        self._nozzle_rack_logged = True
+                        logger.info(
+                            "[%s] Nozzle rack raw keys: %s",
+                            self.serial_number,
+                            [list(n.keys()) for n in nozzle_info[:2]],
+                        )
                 for nozzle in nozzle_info:
                     idx = nozzle.get("id", 0)
                     if idx < len(self.state.nozzles):

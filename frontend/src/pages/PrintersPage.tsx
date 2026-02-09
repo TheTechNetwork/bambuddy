@@ -410,6 +410,183 @@ function NozzleBadge({ side }: { side: 'L' | 'R' }) {
   );
 }
 
+// Parse RGBA hex to CSS color (skip if empty or all zeros)
+function parseFilamentColor(rgba: string): string | null {
+  if (!rgba || rgba === '00000000' || rgba.length < 6) return null;
+  const r = rgba.slice(0, 2);
+  const g = rgba.slice(2, 4);
+  const b = rgba.slice(4, 6);
+  const a = rgba.length >= 8 ? parseInt(rgba.slice(6, 8), 16) / 255 : 1;
+  if (a === 0) return null;
+  return `rgba(${parseInt(r, 16)}, ${parseInt(g, 16)}, ${parseInt(b, 16)}, ${a})`;
+}
+
+// Expand nozzle type codes to full names
+function nozzleTypeName(type: string, t: (key: string) => string): string {
+  if (type.includes('hardened')) return t('printers.nozzleHardenedSteel');
+  if (type.includes('stainless')) return t('printers.nozzleStainlessSteel');
+  return type || '';
+}
+
+// Per-slot hover card for nozzle rack
+function NozzleSlotHoverCard({ slot, index, children }: {
+  slot: import('../api/client').NozzleRackSlot;
+  index: number;
+  children: React.ReactNode;
+}) {
+  const { t } = useTranslation();
+  const [isVisible, setIsVisible] = useState(false);
+  const [position, setPosition] = useState<'top' | 'bottom'>('top');
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const isEmpty = !slot.nozzle_diameter && !slot.nozzle_type;
+  const isMounted = slot.stat === 1;
+
+  useEffect(() => {
+    if (isVisible && triggerRef.current && cardRef.current) {
+      const triggerRect = triggerRef.current.getBoundingClientRect();
+      const cardHeight = cardRef.current.offsetHeight;
+      const headerHeight = 56;
+      const spaceAbove = triggerRect.top - headerHeight;
+      const spaceBelow = window.innerHeight - triggerRect.bottom;
+      if (spaceAbove < cardHeight + 12 && spaceBelow > spaceAbove) {
+        setPosition('bottom');
+      } else {
+        setPosition('top');
+      }
+    }
+  }, [isVisible]);
+
+  const handleMouseEnter = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => setIsVisible(true), 80);
+  };
+
+  const handleMouseLeave = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => setIsVisible(false), 100);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
+  const filamentCss = parseFilamentColor(slot.filament_color);
+  const typeFull = nozzleTypeName(slot.nozzle_type, t);
+
+  return (
+    <div
+      ref={triggerRef}
+      className="relative"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      {children}
+
+      {isVisible && (
+        <div
+          ref={cardRef}
+          className={`
+            absolute left-1/2 -translate-x-1/2 z-50
+            ${position === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'}
+            animate-in fade-in-0 zoom-in-95 duration-150
+          `}
+          style={{ maxWidth: 'calc(100vw - 24px)' }}
+        >
+          <div className="w-44 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-xl overflow-hidden backdrop-blur-sm">
+            {isEmpty ? (
+              <div className="px-3 py-2 text-xs text-bambu-gray text-center whitespace-nowrap">
+                Slot {index + 1} — Empty
+              </div>
+            ) : (
+              <div className="p-2.5 space-y-1.5">
+                {/* Diameter */}
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase tracking-wider text-bambu-gray font-medium">Diameter</span>
+                  <span className="text-xs text-white font-semibold">{slot.nozzle_diameter} mm</span>
+                </div>
+
+                {/* Type */}
+                {typeFull && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase tracking-wider text-bambu-gray font-medium">Type</span>
+                    <span className="text-xs text-white font-semibold truncate max-w-[100px]">{typeFull}</span>
+                  </div>
+                )}
+
+                {/* Status badge */}
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase tracking-wider text-bambu-gray font-medium">Status</span>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                    isMounted
+                      ? 'bg-green-900/50 text-green-400'
+                      : 'bg-bambu-dark-tertiary text-bambu-gray'
+                  }`}>
+                    {isMounted ? t('printers.nozzleMounted') : t('printers.nozzleDocked')}
+                  </span>
+                </div>
+
+                {/* Wear (hide if null/0) */}
+                {slot.wear != null && slot.wear > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase tracking-wider text-bambu-gray font-medium">{t('printers.nozzleWear')}</span>
+                    <span className="text-xs text-white font-semibold">{slot.wear}%</span>
+                  </div>
+                )}
+
+                {/* Max Temp (hide if 0) */}
+                {slot.max_temp > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase tracking-wider text-bambu-gray font-medium">{t('printers.nozzleMaxTemp')}</span>
+                    <span className="text-xs text-white font-semibold">{slot.max_temp}°C</span>
+                  </div>
+                )}
+
+                {/* Serial (hide if empty) */}
+                {slot.serial_number && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase tracking-wider text-bambu-gray font-medium">{t('printers.nozzleSerial')}</span>
+                    <span className="text-[10px] text-white font-mono truncate max-w-[80px]">{slot.serial_number}</span>
+                  </div>
+                )}
+
+                {/* Filament color swatch + ID (hide if empty/00000000) */}
+                {filamentCss && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase tracking-wider text-bambu-gray font-medium">Filament</span>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded-sm border border-white/20" style={{ backgroundColor: filamentCss }} />
+                      {slot.filament_id && (
+                        <span className="text-[10px] text-white font-mono">{slot.filament_id}</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Arrow pointer */}
+          <div
+            className={`
+              absolute left-1/2 -translate-x-1/2 w-0 h-0
+              border-l-[6px] border-l-transparent
+              border-r-[6px] border-r-transparent
+              ${position === 'top'
+                ? 'top-full border-t-[6px] border-t-bambu-dark-tertiary'
+                : 'bottom-full border-b-[6px] border-b-bambu-dark-tertiary'}
+            `}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 // H2C Nozzle Rack Card — 2×3 grid showing 6-position tool-changer dock
 function NozzleRackCard({ slots }: { slots: import('../api/client').NozzleRackSlot[] }) {
   const { t } = useTranslation();
@@ -418,7 +595,7 @@ function NozzleRackCard({ slots }: { slots: import('../api/client').NozzleRackSl
   const dockSlots = slots.slice(0, 6);
 
   return (
-    <div className="text-center px-2 py-1.5 bg-bambu-dark rounded-lg" style={{ minWidth: '80px' }}>
+    <div className="text-center px-2 py-1.5 bg-bambu-dark rounded-lg flex flex-col justify-center" style={{ minWidth: '80px' }}>
       <p className="text-[9px] text-bambu-gray mb-0.5">{t('printers.nozzleRack')}</p>
       <div className="grid grid-cols-3 gap-0.5">
         {dockSlots.map((slot, i) => {
@@ -426,32 +603,38 @@ function NozzleRackCard({ slots }: { slots: import('../api/client').NozzleRackSl
           const isMounted = slot.stat === 1;
           // Type abbreviation: S=stainless, H=hardened
           const typeAbbr = slot.nozzle_type?.includes('hardened') ? 'H' : slot.nozzle_type?.includes('stainless') ? 'S' : '';
+          const filamentBg = parseFilamentColor(slot.filament_color);
 
           return (
-            <div
-              key={slot.id ?? i}
-              className={`rounded px-0.5 py-0.5 text-center ${
-                isEmpty
-                  ? 'bg-bambu-dark-tertiary/30 opacity-40'
-                  : isMounted
-                    ? 'bg-green-900/40 ring-1 ring-green-500/60'
-                    : 'bg-bambu-dark-tertiary/50'
-              }`}
-              title={isEmpty ? `Slot ${i + 1}: empty` : `Slot ${i + 1}: ${slot.nozzle_diameter}mm ${slot.nozzle_type || ''} ${isMounted ? '(mounted)' : ''}`}
-            >
-              {isEmpty ? (
-                <p className="text-[9px] text-bambu-gray">—</p>
-              ) : (
-                <>
-                  <p className={`text-[10px] font-medium ${isMounted ? 'text-green-400' : 'text-white'}`}>
-                    {slot.nozzle_diameter || '?'}
-                  </p>
-                  {typeAbbr && (
-                    <p className="text-[8px] text-bambu-gray leading-none">{typeAbbr}</p>
-                  )}
-                </>
-              )}
-            </div>
+            <NozzleSlotHoverCard key={slot.id ?? i} slot={slot} index={i}>
+              <div
+                className={`rounded px-0.5 py-0.5 text-center cursor-default ${
+                  isEmpty
+                    ? 'bg-bambu-dark-tertiary/30 opacity-40'
+                    : isMounted
+                      ? 'ring-1 ring-green-500/60'
+                      : 'bg-bambu-dark-tertiary/50'
+                }`}
+                style={filamentBg && !isEmpty ? { backgroundColor: filamentBg } : (isMounted && !filamentBg ? { backgroundColor: 'rgba(20, 83, 45, 0.4)' } : undefined)}
+              >
+                {isEmpty ? (
+                  <p className="text-[9px] text-bambu-gray">—</p>
+                ) : (
+                  <>
+                    <p className={`text-[10px] font-medium ${isMounted ? 'text-green-400' : 'text-white'}`}
+                       style={filamentBg ? { textShadow: '0 1px 2px rgba(0,0,0,0.8)' } : undefined}
+                    >
+                      {slot.nozzle_diameter || '?'}
+                    </p>
+                    {typeAbbr && (
+                      <p className="text-[8px] text-bambu-gray leading-none"
+                         style={filamentBg ? { textShadow: '0 1px 2px rgba(0,0,0,0.8)' } : undefined}
+                      >{typeAbbr}</p>
+                    )}
+                  </>
+                )}
+              </div>
+            </NozzleSlotHoverCard>
           );
         })}
       </div>
@@ -2014,7 +2197,7 @@ function PrinterCard({
               const activeNozzle = status.active_extruder === 1 ? 'L' : 'R';
 
               return (
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-stretch gap-1.5">
                   {/* Nozzle temp - combined for dual nozzle */}
                   <div className="text-center px-2 py-1.5 bg-bambu-dark rounded-lg flex-1">
                     <HeaterThermometer className="w-3.5 h-3.5 mx-auto mb-0.5" color="text-orange-400" isHeating={nozzleHeating} />

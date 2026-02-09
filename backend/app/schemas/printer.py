@@ -153,6 +153,10 @@ class NozzleRackSlot(BaseModel):
     nozzle_diameter: str = ""
     wear: int | None = None
     stat: int | None = None  # Nozzle status (e.g. mounted/docked)
+    max_temp: int = 0  # Max temperature rating °C (0 = not set)
+    serial_number: str = ""  # Nozzle serial number
+    filament_color: str = ""  # RGBA hex ("00000000" = no filament)
+    filament_id: str = ""  # Bambu filament ID
 
 
 class PrintOptionsResponse(BaseModel):

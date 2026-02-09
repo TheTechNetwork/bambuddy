@@ -648,7 +648,21 @@ def printer_state_to_dict(state: PrinterState, printer_id: int | None = None, mo
         # Active extruder for dual-nozzle printers (0=right, 1=left)
         "active_extruder": state.active_extruder,
         # H2C nozzle rack (tool-changer dock positions)
-        "nozzle_rack": state.nozzle_rack or [],
+        # Map raw MQTT field names (type/diameter) to schema names (nozzle_type/nozzle_diameter)
+        "nozzle_rack": [
+            {
+                "id": n.get("id", 0),
+                "nozzle_type": n.get("type", ""),
+                "nozzle_diameter": n.get("diameter", ""),
+                "wear": n.get("wear"),
+                "stat": n.get("stat"),
+                "max_temp": n.get("max_temp", 0),
+                "serial_number": n.get("serial_number", ""),
+                "filament_color": n.get("filament_color", ""),
+                "filament_id": n.get("filament_id", ""),
+            }
+            for n in (state.nozzle_rack or [])
+        ],
     }
     # Add cover URL if there's an active print and printer_id is provided
     # Include PAUSE/PAUSED states so skip objects modal can show cover

@@ -208,6 +208,13 @@ export default {
     mqttDebug: 'MQTT-Debug',
     activeNozzle: 'Aktiv: {{nozzle}} Düse',
     nozzleRack: 'Düsenhalter',
+    nozzleDocked: 'Angedockt',
+    nozzleMounted: 'Montiert',
+    nozzleWear: 'Verschleiß',
+    nozzleMaxTemp: 'Max Temp',
+    nozzleSerial: 'Seriennr.',
+    nozzleHardenedSteel: 'Gehärteter Stahl',
+    nozzleStainlessSteel: 'Edelstahl',
     // Firmware
     firmwareUpdate: 'Firmware-Update',
     firmwareInstructions: 'Gehen Sie auf dem Touchscreen des Druckers zu',
