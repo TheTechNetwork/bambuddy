@@ -394,7 +394,7 @@ export function UsersPage() {
                             disabled={resetPasswordMutation.isPending}
                           >
                             <RotateCcw className="w-4 h-4" />
-                            {t('users.resetPassword') || 'Reset Password'}
+                            {t('users.form.resetPassword') || 'Reset Password'}
                           </Button>
                         )}
                       </div>
