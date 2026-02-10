@@ -2764,6 +2764,8 @@ PUBLIC_API_ROUTES = {
     "/api/v1/auth/status",
     "/api/v1/auth/login",
     "/api/v1/auth/setup",  # Needed for initial setup and recovery
+    "/api/v1/auth/advanced-auth/status",  # Advanced auth status needed for login page
+    "/api/v1/auth/forgot-password",  # Password reset for advanced auth
     # Version check for updates (no sensitive data)
     "/api/v1/updates/version",
     # Metrics endpoint handles its own prometheus_token authentication

@@ -774,3 +774,30 @@ class TestAuthMiddlewarePublicRoutes:
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_advanced_auth_status_is_public(self, async_client: AsyncClient, enabled_auth):
+        """Verify /api/v1/auth/advanced-auth/status is accessible without auth."""
+        response = await async_client.get("/api/v1/auth/advanced-auth/status")
+        # Should not be 401 (must be accessible for login page)
+        assert response.status_code != 401
+        # Should return valid response (200 with auth status)
+        if response.status_code == 200:
+            result = response.json()
+            assert "advanced_auth_enabled" in result
+            assert "smtp_configured" in result
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_forgot_password_is_public(self, async_client: AsyncClient, enabled_auth):
+        """Verify /api/v1/auth/forgot-password is accessible without auth."""
+        response = await async_client.post(
+            "/api/v1/auth/forgot-password",
+            json={"email": "test@example.com"},
+        )
+        # Should not be 401 (must be accessible for password reset from login page)
+        assert response.status_code != 401
+        # Will likely be 400 (advanced auth not enabled) but that's okay -
+        # the important thing is it's not blocked by auth middleware
+        assert response.status_code in [200, 400]

@@ -3,6 +3,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from backend.app.api.routes.settings import get_external_login_url
 from backend.app.core.auth import (
     RequirePermissionIfAuthEnabled,
     get_current_user_optional,
@@ -15,8 +16,15 @@ from backend.app.models.archive import PrintArchive
 from backend.app.models.group import Group
 from backend.app.models.library import LibraryFile
 from backend.app.models.print_queue import PrintQueueItem
+from backend.app.models.settings import Settings
 from backend.app.models.user import User
 from backend.app.schemas.auth import ChangePasswordRequest, GroupBrief, UserCreate, UserResponse, UserUpdate
+from backend.app.services.email_service import (
+    create_welcome_email_from_template,
+    generate_secure_password,
+    get_smtp_settings,
+    send_email,
+)
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -26,6 +34,7 @@ def _user_to_response(user: User) -> UserResponse:
     return UserResponse(
         id=user.id,
         username=user.username,
+        email=user.email,
         role=user.role,
         is_active=user.is_active,
         is_admin=user.is_admin,
@@ -54,9 +63,24 @@ async def create_user(
     _: User | None = RequirePermissionIfAuthEnabled(Permission.USERS_CREATE),
     db: AsyncSession = Depends(get_db),
 ):
-    """Create a new user."""
-    # Check if username already exists
-    existing_user = await db.execute(select(User).where(User.username == user_data.username))
+    """Create a new user.
+
+    When advanced authentication is enabled:
+    - Email is required
+    - Password is auto-generated and emailed to user
+    - Admin cannot set or see the password
+    """
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    # Check if advanced auth is enabled
+    result = await db.execute(select(Settings).where(Settings.key == "advanced_auth_enabled"))
+    advanced_auth_setting = result.scalar_one_or_none()
+    advanced_auth_enabled = advanced_auth_setting and advanced_auth_setting.value.lower() == "true"
+
+    # Check if username already exists (case-insensitive)
+    existing_user = await db.execute(select(User).where(func.lower(User.username) == func.lower(user_data.username)))
     if existing_user.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -70,9 +94,36 @@ async def create_user(
             detail="Role must be 'admin' or 'user'",
         )
 
+    # Advanced auth validation
+    if advanced_auth_enabled:
+        if not user_data.email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email is required when advanced authentication is enabled",
+            )
+        # Check if email already exists (case-insensitive)
+        existing_email = await db.execute(select(User).where(func.lower(User.email) == func.lower(user_data.email)))
+        if existing_email.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already exists",
+            )
+
+    # Generate password if advanced auth enabled, otherwise require password
+    if advanced_auth_enabled:
+        password = generate_secure_password()
+    else:
+        if not user_data.password:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password is required when advanced authentication is disabled",
+            )
+        password = user_data.password
+
     new_user = User(
         username=user_data.username,
-        password_hash=get_password_hash(user_data.password),
+        email=user_data.email,
+        password_hash=get_password_hash(password),
         role=user_data.role,
         is_active=True,
     )
@@ -91,6 +142,23 @@ async def create_user(
     db.add(new_user)
     await db.commit()
     await db.refresh(new_user)
+
+    # Send welcome email if advanced auth enabled
+    if advanced_auth_enabled and new_user.email:
+        try:
+            smtp_settings = await get_smtp_settings(db)
+            if smtp_settings:
+                login_url = await get_external_login_url(db)
+                subject, text_body, html_body = await create_welcome_email_from_template(
+                    db, new_user.username, password, login_url
+                )
+                send_email(smtp_settings, new_user.email, subject, text_body, html_body)
+                logger.info(f"Welcome email sent to {new_user.email}")
+            else:
+                logger.warning(f"SMTP not configured, could not send welcome email to {new_user.email}")
+        except Exception as e:
+            logger.error(f"Failed to send welcome email: {e}")
+            # Don't fail user creation if email fails
 
     return _user_to_response(new_user)
 
@@ -161,14 +229,28 @@ async def update_user(
             )
 
     if user_data.username is not None:
-        # Check if new username already exists
-        existing_user = await db.execute(select(User).where(User.username == user_data.username, User.id != user_id))
+        # Check if new username already exists (case-insensitive)
+        existing_user = await db.execute(
+            select(User).where(func.lower(User.username) == func.lower(user_data.username), User.id != user_id)
+        )
         if existing_user.scalar_one_or_none():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Username already exists",
             )
         user.username = user_data.username
+
+    if user_data.email is not None:
+        # Check if new email already exists (case-insensitive)
+        existing_email = await db.execute(
+            select(User).where(func.lower(User.email) == func.lower(user_data.email), User.id != user_id)
+        )
+        if existing_email.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already exists",
+            )
+        user.email = user_data.email
 
     if user_data.password is not None:
         user.password_hash = get_password_hash(user_data.password)

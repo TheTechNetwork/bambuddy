@@ -146,4 +146,16 @@ DEFAULT_TEMPLATES = [
         "title_template": "Queue Complete",
         "body_template": "All {completed_count} queued jobs have finished",
     },
+    {
+        "event_type": "user_created",
+        "name": "Welcome Email",
+        "title_template": "Welcome to {app_name}",
+        "body_template": "Welcome {username}!\n\nYour account has been created.\nUsername: {username}\nPassword: {password}\n\nLogin at: {login_url}",
+    },
+    {
+        "event_type": "password_reset",
+        "name": "Password Reset",
+        "title_template": "{app_name} - Password Reset",
+        "body_template": "Hello {username},\n\nYour password has been reset.\nNew Password: {password}\n\nLogin at: {login_url}",
+    },
 ]

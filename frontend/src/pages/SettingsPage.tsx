@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Plus, Plug, AlertTriangle, RotateCcw, Bell, Download, RefreshCw, ExternalLink, Globe, Droplets, Thermometer, FileText, Edit2, Send, CheckCircle, XCircle, History, Trash2, Zap, TrendingUp, Calendar, DollarSign, Power, PowerOff, Key, Copy, Database, X, Shield, Printer, Cylinder, Wifi, Home, Video, Users, Lock, Unlock, ChevronDown, ChevronRight, Check, Save } from 'lucide-react';
+import { Loader2, Plus, Plug, AlertTriangle, RotateCcw, Bell, Download, RefreshCw, ExternalLink, Globe, Droplets, Thermometer, FileText, Edit2, Send, CheckCircle, XCircle, History, Trash2, Zap, TrendingUp, Calendar, DollarSign, Power, PowerOff, Key, Copy, Database, X, Shield, Printer, Cylinder, Wifi, Home, Video, Users, Lock, Unlock, ChevronDown, ChevronRight, Check, Save, Mail } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
@@ -15,10 +15,12 @@ import { AddNotificationModal } from '../components/AddNotificationModal';
 import { NotificationTemplateEditor } from '../components/NotificationTemplateEditor';
 import { NotificationLogViewer } from '../components/NotificationLogViewer';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { CreateUserAdvancedAuthModal } from '../components/CreateUserAdvancedAuthModal';
 import { SpoolmanSettings } from '../components/SpoolmanSettings';
 import { ExternalLinksSettings } from '../components/ExternalLinksSettings';
 import { VirtualPrinterSettings } from '../components/VirtualPrinterSettings';
 import { GitHubBackupSettings } from '../components/GitHubBackupSettings';
+import { EmailSettings } from '../components/EmailSettings';
 import { APIBrowser } from '../components/APIBrowser';
 import { virtualPrinterApi } from '../api/client';
 import { defaultNavItems, getDefaultView, setDefaultView } from '../components/Layout';
@@ -28,7 +30,7 @@ import { useTheme, type ThemeStyle, type DarkBackground, type LightBackground, t
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Palette } from 'lucide-react';
 
-const validTabs = ['general', 'network', 'plugs', 'notifications', 'filament', 'apikeys', 'virtual-printer', 'users', 'backup'] as const;
+const validTabs = ['general', 'network', 'plugs', 'email', 'notifications', 'filament', 'apikeys', 'virtual-printer', 'users', 'backup'] as const;
 type TabType = typeof validTabs[number];
 
 export function SettingsPage() {
@@ -99,13 +101,15 @@ export function SettingsPage() {
   const [deleteUserLoading, setDeleteUserLoading] = useState(false);
   const [userFormData, setUserFormData] = useState<{
     username: string;
-    password: string;
+    password?: string;
+    email?: string;
     confirmPassword: string;
     role: string;
     group_ids: number[];
   }>({
     username: '',
     password: '',
+    email: '',
     confirmPassword: '',
     role: 'user',
     group_ids: [],
@@ -307,6 +311,12 @@ export function SettingsPage() {
     queryFn: api.getCloudStatus,
   });
 
+  // Advanced auth status for user creation
+  const { data: advancedAuthStatus = { advanced_auth_enabled: false, smtp_configured: false } } = useQuery({
+    queryKey: ['advancedAuthStatus'],
+    queryFn: () => api.getAdvancedAuthStatus(),
+  });
+
   // User management queries and mutations
   const { hasPermission } = useAuth();
 
@@ -334,7 +344,7 @@ export function SettingsPage() {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       queryClient.invalidateQueries({ queryKey: ['groups'] });
       setShowCreateUserModal(false);
-      setUserFormData({ username: '', password: '', confirmPassword: '', role: 'user', group_ids: [] });
+      setUserFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
       showToast(t('settings.toast.userCreated'));
     },
     onError: (error: Error) => {
@@ -349,7 +359,7 @@ export function SettingsPage() {
       queryClient.invalidateQueries({ queryKey: ['groups'] });
       setShowEditUserModal(false);
       setEditingUserId(null);
-      setUserFormData({ username: '', password: '', confirmPassword: '', role: 'user', group_ids: [] });
+      setUserFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
       showToast(t('settings.toast.userUpdated'));
     },
     onError: (error: Error) => {
@@ -364,6 +374,16 @@ export function SettingsPage() {
       showToast(t('settings.toast.userDeleted'));
       setDeleteUserId(null);
       setDeleteUserItemCounts(null);
+    },
+    onError: (error: Error) => {
+      showToast(error.message, 'error');
+    },
+  });
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: (userId: number) => api.resetUserPassword({ user_id: userId }),
+    onSuccess: (response) => {
+      showToast(response.message, 'success');
     },
     onError: (error: Error) => {
       showToast(error.message, 'error');
@@ -424,21 +444,40 @@ export function SettingsPage() {
 
   // User management handlers
   const handleCreateUser = () => {
-    if (!userFormData.username || !userFormData.password) {
+    // Use the status from the query hook
+    const advancedAuthEnabled = advancedAuthStatus?.advanced_auth_enabled || false;
+    
+    if (!userFormData.username) {
       showToast(t('settings.toast.fillRequiredFields'), 'error');
       return;
     }
-    if (userFormData.password !== userFormData.confirmPassword) {
-      showToast(t('settings.toast.passwordsDoNotMatch'), 'error');
+    
+    // Email is required when advanced auth is enabled
+    if (advancedAuthEnabled && !userFormData.email) {
+      showToast('Email is required when advanced authentication is enabled', 'error');
       return;
     }
-    if (userFormData.password.length < 6) {
-      showToast(t('settings.toast.passwordTooShort'), 'error');
-      return;
+    
+    // Password validation only when advanced auth is disabled
+    if (!advancedAuthEnabled) {
+      if (!userFormData.password) {
+        showToast(t('settings.toast.fillRequiredFields'), 'error');
+        return;
+      }
+      if (userFormData.password !== userFormData.confirmPassword) {
+        showToast(t('settings.toast.passwordsDoNotMatch'), 'error');
+        return;
+      }
+      if (userFormData.password.length < 6) {
+        showToast(t('settings.toast.passwordTooShort'), 'error');
+        return;
+      }
     }
+    
     createUserMutation.mutate({
       username: userFormData.username,
-      password: userFormData.password,
+      password: advancedAuthEnabled ? undefined : userFormData.password,
+      email: userFormData.email || undefined,
       role: userFormData.role,
       group_ids: userFormData.group_ids.length > 0 ? userFormData.group_ids : undefined,
     });
@@ -472,6 +511,7 @@ export function SettingsPage() {
     setUserFormData({
       username: userToEdit.username,
       password: '',
+      email: userToEdit.email || '',
       confirmPassword: '',
       role: userToEdit.role,
       group_ids: userToEdit.groups?.map(g => g.id) || [],
@@ -919,7 +959,7 @@ export function SettingsPage() {
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex gap-1 mb-6 border-b border-bambu-dark-tertiary overflow-x-auto">
+      <div className="flex flex-wrap gap-1 mb-6 border-b border-bambu-dark-tertiary">
         <button
           onClick={() => handleTabChange('general')}
           className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
@@ -945,6 +985,17 @@ export function SettingsPage() {
               {smartPlugs.length}
             </span>
           )}
+        </button>
+        <button
+          onClick={() => handleTabChange('email')}
+          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px flex items-center gap-2 ${
+            activeTab === 'email'
+              ? 'text-bambu-green border-bambu-green'
+              : 'text-bambu-gray hover:text-gray-900 dark:hover:text-white border-transparent'
+          }`}
+        >
+          <Mail className="w-4 h-4" />
+          {t('settings.tabs.globalEmail') || 'Global Email'}
         </button>
         <button
           onClick={() => handleTabChange('notifications')}
@@ -3456,6 +3507,25 @@ export function SettingsPage() {
             </CardContent>
           </Card>
 
+          {/* Advanced Authentication Notice Box */}
+          {advancedAuthStatus?.advanced_auth_enabled && (
+            <Card className="border-blue-500/30 bg-blue-500/5">
+              <CardContent className="py-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center bg-blue-500/20 flex-shrink-0">
+                    <Mail className="w-5 h-5 text-blue-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-white font-medium">{t('settings.email.advancedAuthEnabled')}</h3>
+                    <p className="text-sm text-bambu-gray mt-1">
+                      {t('settings.email.advancedAuthEnabledDesc')}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {authEnabled && (
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
               {/* Left Column: Current User + User List */}
@@ -3521,7 +3591,7 @@ export function SettingsPage() {
                           size="sm"
                           onClick={() => {
                             setShowCreateUserModal(true);
-                            setUserFormData({ username: '', password: '', confirmPassword: '', role: 'user', group_ids: [] });
+                            setUserFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
                           }}
                         >
                           <Plus className="w-4 h-4" />
@@ -3707,12 +3777,12 @@ export function SettingsPage() {
       )}
 
       {/* Create User Modal */}
-      {showCreateUserModal && (
+      {showCreateUserModal && !advancedAuthStatus?.advanced_auth_enabled && (
         <div
           className="fixed inset-0 bg-black flex items-center justify-center z-50 p-4"
           onClick={() => {
             setShowCreateUserModal(false);
-            setUserFormData({ username: '', password: '', confirmPassword: '', role: 'user', group_ids: [] });
+            setUserFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
           }}
         >
           <Card
@@ -3730,7 +3800,7 @@ export function SettingsPage() {
                   size="sm"
                   onClick={() => {
                     setShowCreateUserModal(false);
-                    setUserFormData({ username: '', password: '', confirmPassword: '', role: 'user', group_ids: [] });
+                    setUserFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
                   }}
                 >
                   <X className="w-5 h-5" />
@@ -3812,7 +3882,7 @@ export function SettingsPage() {
                   variant="secondary"
                   onClick={() => {
                     setShowCreateUserModal(false);
-                    setUserFormData({ username: '', password: '', confirmPassword: '', role: 'user', group_ids: [] });
+                    setUserFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
                   }}
                 >
                   Cancel
@@ -3839,6 +3909,22 @@ export function SettingsPage() {
         </div>
       )}
 
+      {/* Create User Modal - Advanced Authentication */}
+      {showCreateUserModal && advancedAuthStatus?.advanced_auth_enabled && (
+        <CreateUserAdvancedAuthModal
+          formData={userFormData}
+          setFormData={setUserFormData}
+          groups={groupsData}
+          onClose={() => {
+            setShowCreateUserModal(false);
+            setUserFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
+          }}
+          onCreate={handleCreateUser}
+          isCreating={createUserMutation.isPending}
+          isCreateButtonDisabled={createUserMutation.isPending || !userFormData.username || !userFormData.email}
+        />
+      )}
+
       {/* Edit User Modal */}
       {showEditUserModal && editingUserId !== null && (
         <div
@@ -3846,7 +3932,7 @@ export function SettingsPage() {
           onClick={() => {
             setShowEditUserModal(false);
             setEditingUserId(null);
-            setUserFormData({ username: '', password: '', confirmPassword: '', role: 'user', group_ids: [] });
+            setUserFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
           }}
         >
           <Card
@@ -3865,7 +3951,7 @@ export function SettingsPage() {
                   onClick={() => {
                     setShowEditUserModal(false);
                     setEditingUserId(null);
-                    setUserFormData({ username: '', password: '', confirmPassword: '', role: 'user', group_ids: [] });
+                    setUserFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
                   }}
                 >
                   <X className="w-5 h-5" />
@@ -3874,8 +3960,11 @@ export function SettingsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
+                {/* Username Field */}
                 <div>
-                  <label className="block text-sm font-medium text-white mb-2">{t('settings.username')}</label>
+                  <label className="block text-sm font-medium text-white mb-2">
+                    {t('settings.username')} {advancedAuthStatus?.advanced_auth_enabled && <span className="text-red-400">*</span>}
+                  </label>
                   <input
                     type="text"
                     value={userFormData.username}
@@ -3885,43 +3974,94 @@ export function SettingsPage() {
                     autoComplete="username"
                   />
                 </div>
+
+                {/* Email Field */}
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">
-                    Password <span className="text-bambu-gray font-normal">(leave blank to keep current)</span>
+                    {t('users.form.email') || 'Email'} {advancedAuthStatus?.advanced_auth_enabled ? <span className="text-red-400">*</span> : <span className="text-bambu-gray font-normal">({t('users.form.optional') || 'optional'})</span>}
                   </label>
                   <input
-                    type="password"
-                    value={userFormData.password}
-                    onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value, confirmPassword: '' })}
+                    type="email"
+                    value={userFormData.email}
+                    onChange={(e) => setUserFormData({ ...userFormData, email: e.target.value })}
                     className="w-full px-4 py-3 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:border-bambu-green transition-colors"
-                    placeholder={t('settings.enterNewPassword')}
-                    autoComplete="new-password"
-                    minLength={6}
+                    placeholder={t('users.form.emailPlaceholder') || 'user@example.com'}
+                    required={advancedAuthStatus?.advanced_auth_enabled}
                   />
                 </div>
-                {userFormData.password && (
-                  <div>
-                    <label className="block text-sm font-medium text-white mb-2">{t('settings.confirmPassword')}</label>
-                    <input
-                      type="password"
-                      value={userFormData.confirmPassword}
-                      onChange={(e) => setUserFormData({ ...userFormData, confirmPassword: e.target.value })}
-                      className={`w-full px-4 py-3 bg-bambu-dark-secondary border rounded-lg text-white placeholder-bambu-gray focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:border-bambu-green transition-colors ${
-                        userFormData.confirmPassword && userFormData.password !== userFormData.confirmPassword
-                          ? 'border-red-500'
-                          : 'border-bambu-dark-tertiary'
-                      }`}
-                      placeholder={t('settings.confirmNewPassword')}
-                      autoComplete="new-password"
-                      minLength={6}
-                    />
-                    {userFormData.confirmPassword && userFormData.password !== userFormData.confirmPassword && (
-                      <p className="text-red-400 text-xs mt-1">{t('settings.passwordsDoNotMatch')}</p>
+
+                {/* Password Fields - only show when Advanced Auth is disabled */}
+                {!advancedAuthStatus?.advanced_auth_enabled && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-white mb-2">
+                        {t('users.form.password') || 'Password'} <span className="text-bambu-gray font-normal">({t('users.form.leaveBlankToKeep') || 'leave blank to keep current'})</span>
+                      </label>
+                      <input
+                        type="password"
+                        value={userFormData.password}
+                        onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value, confirmPassword: '' })}
+                        className="w-full px-4 py-3 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:border-bambu-green transition-colors"
+                        placeholder={t('settings.enterNewPassword')}
+                        autoComplete="new-password"
+                        minLength={6}
+                      />
+                    </div>
+                    {userFormData.password && (
+                      <div>
+                        <label className="block text-sm font-medium text-white mb-2">{t('settings.confirmPassword')}</label>
+                        <input
+                          type="password"
+                          value={userFormData.confirmPassword}
+                          onChange={(e) => setUserFormData({ ...userFormData, confirmPassword: e.target.value })}
+                          className={`w-full px-4 py-3 bg-bambu-dark-secondary border rounded-lg text-white placeholder-bambu-gray focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:border-bambu-green transition-colors ${
+                            userFormData.confirmPassword && userFormData.password !== userFormData.confirmPassword
+                              ? 'border-red-500'
+                              : 'border-bambu-dark-tertiary'
+                          }`}
+                          placeholder={t('settings.confirmNewPassword')}
+                          autoComplete="new-password"
+                          minLength={6}
+                        />
+                        {userFormData.confirmPassword && userFormData.password !== userFormData.confirmPassword && (
+                          <p className="text-red-400 text-xs mt-1">{t('settings.passwordsDoNotMatch')}</p>
+                        )}
+                      </div>
                     )}
+                  </>
+                )}
+
+                {/* Info box about auto-generated password when Advanced Auth is enabled */}
+                {advancedAuthStatus?.advanced_auth_enabled && (
+                  <div className="bg-bambu-dark-secondary/50 border border-bambu-green/20 rounded-lg p-3 space-y-3">
+                    <p className="text-sm text-bambu-gray">
+                      {t('users.form.passwordManagedByAdvancedAuth') || 'Password is managed by Advanced Authentication. Use "Reset Password" to send a new password to the user via email.'}
+                    </p>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => editingUserId && resetPasswordMutation.mutate(editingUserId)}
+                      disabled={resetPasswordMutation.isPending || !userFormData.email}
+                      className="w-full"
+                    >
+                      {resetPasswordMutation.isPending ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          {t('users.form.resettingPassword') || 'Resetting Password...'}
+                        </>
+                      ) : (
+                        <>
+                          <RotateCcw className="w-4 h-4" />
+                          {t('users.form.resetPassword') || 'Reset Password'}
+                        </>
+                      )}
+                    </Button>
                   </div>
                 )}
+
+                {/* Groups Field */}
                 <div>
-                  <label className="block text-sm font-medium text-white mb-2">Groups</label>
+                  <label className="block text-sm font-medium text-white mb-2">{t('users.form.groups') || 'Groups'}</label>
                   <div className="space-y-2 max-h-40 overflow-y-auto p-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg">
                     {groupsData.map(group => (
                       <label
@@ -3936,7 +4076,7 @@ export function SettingsPage() {
                         />
                         <span className="text-sm text-white">{group.name}</span>
                         {group.is_system && (
-                          <span className="text-xs text-yellow-400">(System)</span>
+                          <span className="text-xs text-yellow-400">({t('users.system') || 'System'})</span>
                         )}
                       </label>
                     ))}
@@ -3949,24 +4089,29 @@ export function SettingsPage() {
                   onClick={() => {
                     setShowEditUserModal(false);
                     setEditingUserId(null);
-                    setUserFormData({ username: '', password: '', confirmPassword: '', role: 'user', group_ids: [] });
+                    setUserFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
                   }}
                 >
-                  Cancel
+                  {t('users.modal.cancel') || 'Cancel'}
                 </Button>
                 <Button
                   onClick={() => handleUpdateUser(editingUserId)}
-                  disabled={updateUserMutation.isPending || !userFormData.username || !!(userFormData.password && (userFormData.password !== userFormData.confirmPassword || userFormData.password.length < 6))}
+                  disabled={
+                    updateUserMutation.isPending || 
+                    !userFormData.username || 
+                    (advancedAuthStatus?.advanced_auth_enabled && !userFormData.email) ||
+                    Boolean(!advancedAuthStatus?.advanced_auth_enabled && userFormData.password && (userFormData.password !== userFormData.confirmPassword || userFormData.password.length < 6))
+                  }
                 >
                   {updateUserMutation.isPending ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Saving...
+                      {t('users.modal.saving') || 'Saving...'}
                     </>
                   ) : (
                     <>
                       <Save className="w-4 h-4" />
-                      Save Changes
+                      {t('users.modal.saveChanges') || 'Save Changes'}
                     </>
                   )}
                 </Button>
@@ -4247,6 +4392,11 @@ export function SettingsPage() {
           }}
           onCancel={() => setDeleteGroupId(null)}
         />
+      )}
+
+      {/* Email Tab */}
+      {activeTab === 'email' && (
+        <EmailSettings />
       )}
 
       {/* Backup Tab */}

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { X, Save, Loader2, Wifi, WifiOff, CheckCircle, Bell, Clock, LayoutGrid, Search, Plug, Power, Home, Radio, Eye } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
 import type { SmartPlug, SmartPlugCreate, SmartPlugUpdate, DiscoveredTasmotaDevice } from '../api/client';
 import { Button } from './Button';
@@ -11,6 +12,7 @@ interface AddSmartPlugModalProps {
 }
 
 export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const isEditing = !!plug;
 
@@ -469,7 +471,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
               {isScanning && scanProgress.total > 0 && (
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs text-bambu-gray">
-                    <span>Scanning network...</span>
+                    <span>{t('smartPlugs.addSmartPlug.scanningNetwork')}</span>
                     <span>{scanProgress.scanned} / {scanProgress.total}</span>
                   </div>
                   <div className="w-full bg-bambu-dark-tertiary rounded-full h-2">
@@ -538,7 +540,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                       disabled
                       className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-bambu-gray cursor-not-allowed opacity-50"
                     >
-                      <option>Choose an entity...</option>
+                      <option>{t('smartPlugs.addSmartPlug.chooseEntity')}</option>
                     </select>
                   </div>
                 </div>
@@ -585,7 +587,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                               setIsEntityDropdownOpen(true);
                               setHaEntitySearch('');
                             }}
-                            placeholder="Search entities..."
+                            placeholder={t('smartPlugs.addSmartPlug.placeholders.searchEntities')}
                             className="w-full pl-9 pr-8 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:border-bambu-green focus:outline-none"
                           />
                           {haEntityId && !isEntityDropdownOpen && (
@@ -697,7 +699,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                                   setIsPowerDropdownOpen(true);
                                   setPowerSensorSearch('');
                                 }}
-                                placeholder="Search power sensors..."
+                                placeholder={t('smartPlugs.addSmartPlug.placeholders.searchPowerSensors')}
                                 className="w-full pl-9 pr-8 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:border-bambu-green focus:outline-none"
                               />
                               {haPowerEntity && !isPowerDropdownOpen && (
@@ -781,7 +783,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                                   setIsEnergyTodayDropdownOpen(true);
                                   setEnergyTodaySearch('');
                                 }}
-                                placeholder="Search energy sensors..."
+                                placeholder={t('smartPlugs.addSmartPlug.placeholders.searchEnergySensors')}
                                 className="w-full pl-9 pr-8 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:border-bambu-green focus:outline-none"
                               />
                               {haEnergyTodayEntity && !isEnergyTodayDropdownOpen && (
@@ -865,7 +867,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                                   setIsEnergyTotalDropdownOpen(true);
                                   setEnergyTotalSearch('');
                                 }}
-                                placeholder="Search energy sensors..."
+                                placeholder={t('smartPlugs.addSmartPlug.placeholders.searchEnergySensors')}
                                 className="w-full pl-9 pr-8 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:border-bambu-green focus:outline-none"
                               />
                               {haEnergyTotalEntity && !isEnergyTotalDropdownOpen && (
@@ -1060,7 +1062,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                           type="text"
                           value={mqttStateOnValue}
                           onChange={(e) => setMqttStateOnValue(e.target.value)}
-                          placeholder="ON, true, 1"
+                          placeholder={t('smartPlugs.addSmartPlug.placeholders.mqttStateOnValue')}
                           className="w-full px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:border-bambu-green focus:outline-none"
                         />
                       </div>
@@ -1128,7 +1130,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
               ) : (
                 <>
                   <WifiOff className="w-5 h-5" />
-                  <span>Connection failed</span>
+                  <span>{t('smartPlugs.addSmartPlug.connectionFailed')}</span>
                 </>
               )}
             </div>
@@ -1141,7 +1143,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Living Room Plug"
+              placeholder={t('smartPlugs.addSmartPlug.placeholders.plugName')}
               className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
             />
           </div>

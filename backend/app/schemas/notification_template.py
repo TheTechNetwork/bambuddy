@@ -53,6 +53,9 @@ EVENT_VARIABLES: dict[str, list[str]] = {
     "queue_job_skipped": ["printer", "job_name", "reason", "timestamp", "app_name"],
     "queue_job_failed": ["printer", "job_name", "reason", "timestamp", "app_name"],
     "queue_completed": ["completed_count", "timestamp", "app_name"],
+    # User management notifications
+    "user_created": ["username", "password", "login_url", "app_name", "timestamp"],
+    "password_reset": ["username", "password", "login_url", "app_name", "timestamp"],
 }
 
 # Sample data for previewing templates
@@ -190,6 +193,21 @@ SAMPLE_DATA: dict[str, dict[str, str]] = {
         "completed_count": "5",
         "timestamp": "2024-01-15 18:30",
         "app_name": "Bambuddy",
+    },
+    # User management notifications
+    "user_created": {
+        "username": "john_doe",
+        "password": "TempPass123!",
+        "login_url": "https://bambuddy.example.com/login",
+        "app_name": "Bambuddy",
+        "timestamp": "2024-01-15 14:30",
+    },
+    "password_reset": {
+        "username": "john_doe",
+        "password": "NewPass456!",
+        "login_url": "https://bambuddy.example.com/login",
+        "app_name": "Bambuddy",
+        "timestamp": "2024-01-15 14:30",
     },
 }
 

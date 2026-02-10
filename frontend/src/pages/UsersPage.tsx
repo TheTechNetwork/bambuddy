@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { X, Plus, Edit2, Trash2, Save, Loader2, Users as UsersIcon, Shield, ArrowLeft } from 'lucide-react';
+import { X, Plus, Edit2, Trash2, Save, Loader2, Users as UsersIcon, Shield, ArrowLeft, RotateCcw } from 'lucide-react';
 import { api } from '../api/client';
 import type { UserCreate, UserUpdate, UserResponse } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
@@ -10,10 +10,12 @@ import { useToast } from '../contexts/ToastContext';
 import { Button } from '../components/Button';
 import { Card, CardContent, CardHeader } from '../components/Card';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { CreateUserAdvancedAuthModal } from '../components/CreateUserAdvancedAuthModal';
 
 interface FormData extends UserCreate {
   group_ids: number[];
   confirmPassword: string;
+  email?: string;
 }
 
 export function UsersPage() {
@@ -29,9 +31,16 @@ export function UsersPage() {
   const [formData, setFormData] = useState<FormData>({
     username: '',
     password: '',
+    email: '',
     confirmPassword: '',
     role: 'user',
     group_ids: [],
+  });
+
+  // Check if advanced auth is enabled
+  const { data: advancedAuthStatus = { advanced_auth_enabled: false, smtp_configured: false } } = useQuery({
+    queryKey: ['advancedAuthStatus'],
+    queryFn: () => api.getAdvancedAuthStatus(),
   });
 
   // Close modal on Escape key
@@ -40,12 +49,12 @@ export function UsersPage() {
       if (e.key === 'Escape') {
         if (showCreateModal) {
           setShowCreateModal(false);
-          setFormData({ username: '', password: '', confirmPassword: '', role: 'user', group_ids: [] });
+          setFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
         }
         if (showEditModal) {
           setShowEditModal(false);
           setEditingUserId(null);
-          setFormData({ username: '', password: '', confirmPassword: '', role: 'user', group_ids: [] });
+          setFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
         }
       }
     };
@@ -71,7 +80,7 @@ export function UsersPage() {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       queryClient.invalidateQueries({ queryKey: ['groups'] });
       setShowCreateModal(false);
-      setFormData({ username: '', password: '', confirmPassword: '', role: 'user', group_ids: [] });
+      setFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
       showToast(t('users.toast.created'));
     },
     onError: (error: Error) => {
@@ -86,7 +95,7 @@ export function UsersPage() {
       queryClient.invalidateQueries({ queryKey: ['groups'] });
       setShowEditModal(false);
       setEditingUserId(null);
-      setFormData({ username: '', password: '', confirmPassword: '', role: 'user', group_ids: [] });
+      setFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
       showToast(t('users.toast.updated'));
     },
     onError: (error: Error) => {
@@ -105,22 +114,77 @@ export function UsersPage() {
     },
   });
 
+  const resetPasswordMutation = useMutation({
+    mutationFn: (userId: number) => api.resetUserPassword({ user_id: userId }),
+    onSuccess: (data) => {
+      showToast(data.message, 'success');
+    },
+    onError: (error: Error) => {
+      showToast(error.message, 'error');
+    },
+  });
+
+  // Validation for create user button
+  const isCreateButtonDisabled = useMemo(() => {
+    if (createMutation.isPending || !formData.username) {
+      return true;
+    }
+    if (advancedAuthStatus?.advanced_auth_enabled) {
+      // When advanced auth is enabled, require email (password is auto-generated)
+      return !formData.email;
+    }
+    // When advanced auth is disabled, require valid password
+    return !formData.password || formData.password !== formData.confirmPassword || formData.password.length < 6;
+  }, [
+    createMutation.isPending,
+    formData.username,
+    formData.email,
+    formData.password,
+    formData.confirmPassword,
+    advancedAuthStatus?.advanced_auth_enabled
+  ]);
+
   const handleCreate = () => {
-    if (!formData.username || !formData.password) {
-      showToast(t('users.toast.fillRequired'), 'error');
+    // Use the status from the query hook
+    const advancedAuthEnabled = advancedAuthStatus?.advanced_auth_enabled || false;
+    
+    if (!formData.username) {
+      const errorMsg = t('users.toast.fillRequired');
+      showToast(errorMsg, 'error');
+      if (advancedAuthEnabled) {
+        console.error('[Advanced Auth] Create user failed: Username is required');
+      }
       return;
     }
-    if (formData.password !== formData.confirmPassword) {
-      showToast(t('users.toast.passwordsDoNotMatch'), 'error');
+    
+    // Email is required when advanced auth is enabled
+    if (advancedAuthEnabled && !formData.email) {
+      const errorMsg = 'Email is required when advanced authentication is enabled';
+      showToast(errorMsg, 'error');
+      console.error('[Advanced Auth] Create user failed: Email is required when advanced authentication is enabled');
       return;
     }
-    if (formData.password.length < 6) {
-      showToast(t('users.toast.passwordTooShort'), 'error');
-      return;
+    
+    // Password validation only when advanced auth is disabled
+    if (!advancedAuthEnabled) {
+      if (!formData.password) {
+        showToast(t('users.toast.fillRequired'), 'error');
+        return;
+      }
+      if (formData.password !== formData.confirmPassword) {
+        showToast(t('users.toast.passwordsDoNotMatch'), 'error');
+        return;
+      }
+      if (formData.password.length < 6) {
+        showToast(t('users.toast.passwordTooShort'), 'error');
+        return;
+      }
     }
+    
     createMutation.mutate({
       username: formData.username,
-      password: formData.password,
+      password: advancedAuthEnabled ? undefined : formData.password,
+      email: formData.email || undefined,
       role: formData.role,
       group_ids: formData.group_ids.length > 0 ? formData.group_ids : undefined,
     });
@@ -141,12 +205,17 @@ export function UsersPage() {
     const updateData: UserUpdate = {
       username: formData.username || undefined,
       password: formData.password || undefined,
+      email: formData.email || undefined,
       role: formData.role,
       group_ids: formData.group_ids,
     };
     // Remove password if empty
     if (!updateData.password) {
       delete updateData.password;
+    }
+    // Remove email if empty
+    if (!updateData.email) {
+      delete updateData.email;
     }
     updateMutation.mutate({ id, data: updateData });
   };
@@ -160,6 +229,7 @@ export function UsersPage() {
     setFormData({
       username: user.username,
       password: '',
+      email: user.email || '',
       confirmPassword: '',
       role: user.role,
       group_ids: user.groups?.map(g => g.id) || [],
@@ -170,7 +240,7 @@ export function UsersPage() {
   const closeEditModal = () => {
     setShowEditModal(false);
     setEditingUserId(null);
-    setFormData({ username: '', password: '', confirmPassword: '', role: 'user', group_ids: [] });
+    setFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
   };
 
   const toggleGroup = (groupId: number) => {
@@ -221,7 +291,7 @@ export function UsersPage() {
         <Button
           onClick={() => {
             setShowCreateModal(true);
-            setFormData({ username: '', password: '', confirmPassword: '', role: 'user', group_ids: [] });
+            setFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
           }}
         >
           <Plus className="w-4 h-4" />
@@ -316,6 +386,17 @@ export function UsersPage() {
                             {t('users.delete')}
                           </Button>
                         )}
+                        {advancedAuthStatus?.advanced_auth_enabled && user.email && user.id !== currentUser?.id && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => resetPasswordMutation.mutate(user.id)}
+                            disabled={resetPasswordMutation.isPending}
+                          >
+                            <RotateCcw className="w-4 h-4" />
+                            {t('users.form.resetPassword') || 'Reset Password'}
+                          </Button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -327,12 +408,12 @@ export function UsersPage() {
       )}
 
       {/* Create User Modal */}
-      {showCreateModal && (
+      {showCreateModal && !advancedAuthStatus?.advanced_auth_enabled && (
         <div
           className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
           onClick={() => {
             setShowCreateModal(false);
-            setFormData({ username: '', password: '', confirmPassword: '', role: 'user', group_ids: [] });
+            setFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
           }}
         >
           <Card
@@ -350,7 +431,7 @@ export function UsersPage() {
                   size="sm"
                   onClick={() => {
                     setShowCreateModal(false);
-                    setFormData({ username: '', password: '', confirmPassword: '', role: 'user', group_ids: [] });
+                    setFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
                   }}
                 >
                   <X className="w-5 h-5" />
@@ -440,14 +521,14 @@ export function UsersPage() {
                   variant="secondary"
                   onClick={() => {
                     setShowCreateModal(false);
-                    setFormData({ username: '', password: '', confirmPassword: '', role: 'user', group_ids: [] });
+                    setFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
                   }}
                 >
                   {t('users.modal.cancel')}
                 </Button>
                 <Button
                   onClick={handleCreate}
-                  disabled={createMutation.isPending || !formData.username || !formData.password || formData.password !== formData.confirmPassword || formData.password.length < 6}
+                  disabled={isCreateButtonDisabled}
                 >
                   {createMutation.isPending ? (
                     <>
@@ -465,6 +546,22 @@ export function UsersPage() {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* Create User Modal - Advanced Authentication */}
+      {showCreateModal && advancedAuthStatus?.advanced_auth_enabled && (
+        <CreateUserAdvancedAuthModal
+          formData={formData}
+          setFormData={setFormData}
+          groups={groups}
+          onClose={() => {
+            setShowCreateModal(false);
+            setFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
+          }}
+          onCreate={handleCreate}
+          isCreating={createMutation.isPending}
+          isCreateButtonDisabled={isCreateButtonDisabled}
+        />
       )}
 
       {/* Edit User Modal */}
@@ -505,6 +602,18 @@ export function UsersPage() {
                     className="w-full px-4 py-3 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:border-bambu-green transition-colors"
                     placeholder={t('users.form.usernamePlaceholder')}
                     autoComplete="username"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">
+                    {t('users.form.email') || 'Email'} <span className="text-bambu-gray font-normal">({t('users.form.optional') || 'optional'})</span>
+                  </label>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="w-full px-4 py-3 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:border-bambu-green transition-colors"
+                    placeholder={t('users.form.emailPlaceholder') || 'user@example.com'}
                   />
                 </div>
                 <div>
