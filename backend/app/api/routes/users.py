@@ -80,9 +80,7 @@ async def create_user(
     advanced_auth_enabled = advanced_auth_setting and advanced_auth_setting.value.lower() == "true"
 
     # Check if username already exists (case-insensitive)
-    existing_user = await db.execute(
-        select(User).where(func.lower(User.username) == func.lower(user_data.username))
-    )
+    existing_user = await db.execute(select(User).where(func.lower(User.username) == func.lower(user_data.username)))
     if existing_user.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -104,9 +102,7 @@ async def create_user(
                 detail="Email is required when advanced authentication is enabled",
             )
         # Check if email already exists (case-insensitive)
-        existing_email = await db.execute(
-            select(User).where(func.lower(User.email) == func.lower(user_data.email))
-        )
+        existing_email = await db.execute(select(User).where(func.lower(User.email) == func.lower(user_data.email)))
         if existing_email.scalar_one_or_none():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

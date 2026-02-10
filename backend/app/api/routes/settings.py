@@ -34,17 +34,17 @@ async def get_setting(db: AsyncSession, key: str) -> str | None:
 
 async def get_external_login_url(db: AsyncSession) -> str:
     """Get the external URL for the login page.
-    
+
     Uses external_url from settings if available, otherwise falls back to APP_URL env var.
-    
+
     Args:
         db: Database session
-        
+
     Returns:
         Full URL to the login page
     """
     import os
-    
+
     external_url = await get_setting(db, "external_url")
     if external_url:
         external_url = external_url.rstrip("/")

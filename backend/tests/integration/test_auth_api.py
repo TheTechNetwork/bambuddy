@@ -798,6 +798,6 @@ class TestAuthMiddlewarePublicRoutes:
         )
         # Should not be 401 (must be accessible for password reset from login page)
         assert response.status_code != 401
-        # Will likely be 400 (advanced auth not enabled) but that's okay - 
+        # Will likely be 400 (advanced auth not enabled) but that's okay -
         # the important thing is it's not blocked by auth middleware
         assert response.status_code in [200, 400]

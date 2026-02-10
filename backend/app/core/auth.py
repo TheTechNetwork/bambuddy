@@ -145,7 +145,7 @@ async def get_user_by_email(db: AsyncSession, email: str) -> User | None:
 
 async def authenticate_user(db: AsyncSession, username: str, password: str) -> User | None:
     """Authenticate a user by username and password.
-    
+
     Username lookup is case-insensitive. Password is case-sensitive.
     """
     user = await get_user_by_username(db, username)
@@ -160,7 +160,7 @@ async def authenticate_user(db: AsyncSession, username: str, password: str) -> U
 
 async def authenticate_user_by_email(db: AsyncSession, email: str, password: str) -> User | None:
     """Authenticate a user by email and password.
-    
+
     Email lookup is case-insensitive. Password is case-sensitive.
     """
     user = await get_user_by_email(db, email)
