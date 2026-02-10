@@ -8,6 +8,8 @@ from sqlalchemy.orm import selectinload
 from backend.app.api.routes.settings import get_external_login_url
 from backend.app.core.auth import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
+    Permission,
+    RequirePermissionIfAuthEnabled,
     authenticate_user,
     authenticate_user_by_email,
     create_access_token,
@@ -328,23 +330,13 @@ async def logout():
 @router.post("/smtp/test", response_model=TestSMTPResponse)
 async def test_smtp_connection(
     test_request: TestSMTPRequest,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.SETTINGS_UPDATE),
     db: AsyncSession = Depends(get_db),
 ):
-    """Test SMTP connection with provided settings (admin only)."""
+    """Test SMTP connection with provided settings (admin only when auth enabled)."""
     import logging
 
     logger = logging.getLogger(__name__)
-
-    # Reload user with groups for proper is_admin check
-    result = await db.execute(select(User).where(User.id == current_user.id).options(selectinload(User.groups)))
-    user = result.scalar_one()
-
-    if not user.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admins can test SMTP settings",
-        )
 
     try:
         smtp_settings = SMTPSettings(
@@ -375,20 +367,10 @@ async def test_smtp_connection(
 
 @router.get("/smtp", response_model=SMTPSettings | None)
 async def get_smtp_config(
-    current_user: User = Depends(get_current_active_user),
+    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.SETTINGS_READ),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get SMTP settings (admin only). Password is not returned."""
-    # Reload user with groups for proper is_admin check
-    result = await db.execute(select(User).where(User.id == current_user.id).options(selectinload(User.groups)))
-    user = result.scalar_one()
-
-    if not user.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admins can view SMTP settings",
-        )
-
+    """Get SMTP settings (admin only when auth enabled). Password is not returned."""
     smtp_settings = await get_smtp_settings(db)
     if smtp_settings:
         # Don't return password in response
@@ -399,28 +381,18 @@ async def get_smtp_config(
 @router.post("/smtp", response_model=dict)
 async def save_smtp_config(
     smtp_settings: SMTPSettings,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.SETTINGS_UPDATE),
     db: AsyncSession = Depends(get_db),
 ):
-    """Save SMTP settings (admin only)."""
+    """Save SMTP settings (admin only when auth enabled)."""
     import logging
 
     logger = logging.getLogger(__name__)
 
-    # Reload user with groups for proper is_admin check
-    result = await db.execute(select(User).where(User.id == current_user.id).options(selectinload(User.groups)))
-    user = result.scalar_one()
-
-    if not user.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admins can update SMTP settings",
-        )
-
     try:
         await save_smtp_settings(db, smtp_settings)
         await db.commit()
-        logger.info(f"SMTP settings updated by admin user: {user.username}")
+        logger.info(f"SMTP settings updated by admin user: {current_user.username if current_user else 'anonymous'}")
         return {"message": "SMTP settings saved successfully"}
     except Exception as e:
         await db.rollback()
