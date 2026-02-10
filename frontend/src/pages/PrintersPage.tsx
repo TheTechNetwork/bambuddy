@@ -778,19 +778,20 @@ function DualNozzleHoverCard({ leftSlot, rightSlot, activeNozzle, children }: {
 function NozzleRackCard({ slots }: { slots: import('../api/client').NozzleRackSlot[] }) {
   const { t } = useTranslation();
   // Rack nozzles only (IDs >= 2) — excludes L/R hotend nozzles (IDs 0, 1)
+  // H2C rack IDs are 16-21 — map by actual ID so empty slots appear in the correct position
   const rackNozzles = slots.filter(s => s.id >= 2);
-  // Always show 6 rack positions — pad with empty placeholders for unoccupied slots
   const RACK_SIZE = 6;
+  const minRackId = rackNozzles.length > 0 ? Math.min(...rackNozzles.map(s => s.id)) : 16;
   const rackSlots: (import('../api/client').NozzleRackSlot)[] = Array.from(
     { length: RACK_SIZE },
-    (_, i) => rackNozzles[i] ?? {
+    (_, i) => rackNozzles.find(s => s.id === minRackId + i) ?? {
       id: -(i + 1), nozzle_type: '', nozzle_diameter: '', wear: null, stat: null,
       max_temp: 0, serial_number: '', filament_color: '', filament_id: '', filament_type: '',
     },
   );
 
   return (
-    <div className="text-center px-2.5 py-1.5 bg-bambu-dark rounded-lg flex-[2] flex flex-col justify-center">
+    <div className="text-center px-2.5 py-1.5 bg-bambu-dark rounded-lg flex-[2_1_190px] flex flex-col justify-center">
       <p className="text-[9px] text-bambu-gray mb-1">{t('printers.nozzleRack')}</p>
       <div className="flex gap-[3px] justify-center">
         {rackSlots.map((slot, i) => {
@@ -2387,7 +2388,7 @@ function PrinterCard({
               const rightNozzleSlot = status.nozzle_rack?.find(s => s.id === 1);
 
               return (
-                <div className="flex items-stretch gap-1.5">
+                <div className="flex items-stretch gap-1.5 flex-wrap">
                   {/* Nozzle temp - combined for dual nozzle */}
                   <div className="text-center px-2 py-1.5 bg-bambu-dark rounded-lg flex-1 flex flex-col justify-center items-center">
                     <HeaterThermometer className="w-3.5 h-3.5 mb-0.5" color="text-orange-400" isHeating={nozzleHeating} />

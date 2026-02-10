@@ -1761,10 +1761,14 @@ class BambuMQTTClient:
                                 "diameter": str(n.get("diameter", "")),
                                 "wear": n.get("wear"),
                                 "stat": n.get("stat"),
-                                "max_temp": n.get("max_temp", 0),
-                                "serial_number": str(n.get("serial_number", "")),
-                                "filament_color": str(n.get("filament_colour", "")),
-                                "filament_id": str(n.get("filament_id", "")),
+                                # H2C uses "tm", H2D uses "max_temp"
+                                "max_temp": n.get("max_temp") or n.get("tm", 0),
+                                # H2C uses "sn", H2D uses "serial_number"
+                                "serial_number": str(n.get("serial_number") or n.get("sn", "")),
+                                # H2C uses "color_m", H2D uses "filament_colour"
+                                "filament_color": str(n.get("filament_colour") or n.get("color_m", "")),
+                                # H2C uses "fila_id", H2D uses "filament_id"
+                                "filament_id": str(n.get("filament_id") or n.get("fila_id", "")),
                                 "filament_type": str(n.get("tray_type", "") or n.get("filament_type", "")),
                             }
                             for i, n in enumerate(nozzle_info)
