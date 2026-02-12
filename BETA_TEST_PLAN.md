@@ -4,6 +4,7 @@
 
 - At least one printer connected with AMS
 - At least one Bambu Lab spool (RFID) loaded in AMS
+- At least one spool without RFID tag
 - At least one empty AMS slot (or slot with non-BL filament)
 - A 3MF file ready to print (small/fast test print recommended)
 
