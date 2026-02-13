@@ -416,6 +416,9 @@ async def on_printer_status_change(printer_id: int, state: PrinterState):
         # Find new errors that haven't been notified yet
         new_error_codes = current_error_codes - previously_notified
 
+        # Update tracking immediately to prevent duplicate notifications from concurrent callbacks
+        _notified_hms_errors[printer_id] = current_error_codes
+
         if new_error_codes:
             # Get the actual new errors for the notification
             # Filter to severity >= 2 (skip informational/status messages like H2D sends)
@@ -486,8 +489,6 @@ async def on_printer_status_change(printer_id: int, state: PrinterState):
             except Exception as e:
                 logging.getLogger(__name__).warning(f"HMS error notification failed: {e}")
 
-            # Update tracking with all current errors
-            _notified_hms_errors[printer_id] = current_error_codes
     else:
         # No HMS errors - clear tracking so future errors get notified
         if printer_id in _notified_hms_errors:
