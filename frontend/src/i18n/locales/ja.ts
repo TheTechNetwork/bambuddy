@@ -1296,6 +1296,8 @@ export default {
     archiveSettings: 'アーカイブ設定',
     costTracking: 'コスト追跡',
     dataManagement: 'データ管理',
+    storageUsage: 'ストレージ使用量',
+    storageUsageDescription: 'カテゴリ別のデータ使用量の内訳',
     enableMqtt: 'MQTTを有効化',
     useTls: 'TLSを使用',
     enableMetricsEndpoint: 'メトリクスエンドポイントを有効化',

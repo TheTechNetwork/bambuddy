@@ -1373,6 +1373,8 @@ export default {
     printsOnly: 'Nur Drucke',
     totalConsumption: 'Gesamtverbrauch',
     dataManagement: 'Datenverwaltung',
+    storageUsage: 'Speichernutzung',
+    storageUsageDescription: 'Aufschlüsselung der Datennutzung nach Kategorie',
     clearNotificationLogsDescription: 'Benachrichtigungsprotokolle älter als 30 Tage löschen',
     resetUiPreferencesDescription: 'Seitenleisten-Reihenfolge, Theme, Ansichtsmodi und Layout-Einstellungen zurücksetzen. Drucker, Archive und Einstellungen werden nicht beeinflusst.',
     enableHomeAssistant: 'Home Assistant aktivieren',

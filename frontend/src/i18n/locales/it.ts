@@ -1289,6 +1289,8 @@ export default {
     printsOnly: 'Solo stampe',
     totalConsumption: 'Consumo totale',
     dataManagement: 'Gestione dati',
+    storageUsage: 'Memoria utilizzata',
+    storageUsageDescription: 'Ripartizione della memoria per categoria',
     clearNotificationLogsDescription: 'Elimina log notifiche più vecchi di 30 giorni',
     resetUiPreferencesDescription: 'Reimposta ordine barra laterale, tema, modalità vista e preferenze layout. Stampanti, archivi e impostazioni non vengono modificati.',
     enableHomeAssistant: 'Abilita Home Assistant',

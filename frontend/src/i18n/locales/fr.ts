@@ -1369,6 +1369,8 @@ export default {
     printsOnly: 'Impressions uniquement',
     totalConsumption: 'Consommation totale',
     dataManagement: 'Gestion des données',
+    storageUsage: 'Utilisation du stockage',
+    storageUsageDescription: 'Répartition de l’utilisation des données par catégorie',
     clearNotificationLogsDescription: 'Supprimer logs de plus de 30 jours',
     resetUiPreferencesDescription: 'Réinitialise thèmes et affichage sans toucher aux données.',
     enableHomeAssistant: 'Activer Home Assistant',

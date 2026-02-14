@@ -1373,6 +1373,8 @@ export default {
     printsOnly: 'Prints Only',
     totalConsumption: 'Total Consumption',
     dataManagement: 'Data Management',
+    storageUsage: 'Storage Usage',
+    storageUsageDescription: 'Breakdown of data usage by category',
     clearNotificationLogsDescription: 'Delete notification logs older than 30 days',
     resetUiPreferencesDescription: 'Reset sidebar order, theme, view modes, and layout preferences. Printers, archives, and settings are not affected.',
     enableHomeAssistant: 'Enable Home Assistant',
