@@ -1309,7 +1309,7 @@ function StatusSummaryBar({ printers }: { printers: Printer[] | undefined }) {
   if (!printers?.length) return null;
 
   return (
-    <div className="flex items-center gap-4 text-sm">
+    <div className="flex flex-wrap items-center gap-4 gap-y-2 text-sm">
       <div className="flex items-center gap-1.5">
         <div className={`w-2 h-2 rounded-full ${counts.idle > 0 ? 'bg-bambu-green' : 'bg-gray-500'}`} />
         <span className="text-bambu-gray">
@@ -1335,17 +1335,21 @@ function StatusSummaryBar({ printers }: { printers: Printer[] | undefined }) {
       {nextFinish && (
         <>
           <div className="w-px h-4 bg-bambu-dark-tertiary" />
-          <div className="flex items-center gap-2">
-            <span className="text-bambu-green font-medium">{t('printers.nextAvailable')}:</span>
-            <span className="text-white font-medium">{nextFinish.name}</span>
-            <div className="w-16 bg-bambu-dark-tertiary rounded-full h-1.5">
-              <div
-                className="bg-bambu-green h-1.5 rounded-full transition-all"
-                style={{ width: `${nextFinish.progress}%` }}
-              />
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-bambu-green font-medium">{t('printers.nextAvailable')}:</span>
+              <span className="text-white font-medium">{nextFinish.name}</span>
             </div>
-            <span className="text-white font-medium">{Math.round(nextFinish.progress)}%</span>
-            <span className="text-bambu-gray">({formatTime(nextFinish.remainingMin * 60)})</span>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="w-full sm:w-16 bg-bambu-dark-tertiary rounded-full h-1.5">
+                <div
+                  className="bg-bambu-green h-1.5 rounded-full transition-all"
+                  style={{ width: `${nextFinish.progress}%` }}
+                />
+              </div>
+              <span className="text-white font-medium">{Math.round(nextFinish.progress)}%</span>
+              <span className="text-bambu-gray">({formatTime(nextFinish.remainingMin * 60)})</span>
+            </div>
           </div>
         </>
       )}
@@ -2622,9 +2626,9 @@ function PrinterCard({
                     <div className="flex-1 h-px bg-bambu-dark-tertiary/30" />
                   </div>
 
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center justify-between gap-2 max-[550px]:items-start">
                     {/* Left: Fan Status - always visible, dynamic coloring */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0 max-[550px]:flex-wrap max-[550px]:items-start max-[550px]:gap-1.5">
                       {/* Part Cooling Fan */}
                       <div
                         className={`flex items-center gap-1 px-1.5 py-1 rounded ${partFan && partFan > 0 ? 'bg-cyan-500/10' : 'bg-bambu-dark'}`}
@@ -2660,7 +2664,7 @@ function PrinterCard({
                     </div>
 
                     {/* Right: Print Control Buttons */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-shrink-0 max-[550px]:self-start">
                       {/* Stop button */}
                       <button
                         onClick={() => setShowStopConfirm(true)}
@@ -2746,7 +2750,7 @@ function PrinterCard({
                                 )}
                               </div>
                               {(ams.humidity != null || ams.temp != null) && (
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-1.5 max-[550px]:flex-col max-[550px]:items-start">
                                   {ams.humidity != null && (
                                     <HumidityIndicator
                                       humidity={ams.humidity}
@@ -3100,9 +3104,9 @@ function PrinterCard({
                               )}
                             </div>
                             {/* Row 2: Slot (left) + Stats (right stacked) */}
-                            <div className="flex gap-1.5">
+                            <div className="flex gap-1.5 max-[550px]:flex-col max-[550px]:items-start">
                               {/* Slot wrapper with menu button, dropdown, and loading overlay */}
-                              <div className="relative group flex-1">
+                              <div className="relative group flex-1 max-[550px]:w-full">
                                 {/* Loading overlay during RFID re-read */}
                                 {isHtRefreshing && (
                                   <div className="absolute inset-0 bg-bambu-dark-tertiary/80 rounded flex items-center justify-center z-20">
@@ -3226,7 +3230,7 @@ function PrinterCard({
                               </div>
                               {/* Stats stacked vertically: Temp on top, Humidity below */}
                               {(ams.humidity != null || ams.temp != null) && (
-                                <div className="flex flex-col justify-center gap-1 shrink-0">
+                                <div className="flex flex-col justify-center gap-1 shrink-0 max-[550px]:w-full">
                                   {ams.temp != null && (
                                     <TemperatureIndicator
                                       temp={ams.temp}
