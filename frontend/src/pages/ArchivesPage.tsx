@@ -1707,6 +1707,11 @@ function ArchiveListRow({
         <div className="col-span-4">
           <div className="flex items-center gap-2">
             <p className="text-white text-sm truncate">{archive.print_name || archive.filename}</p>
+            {(archive.status === 'failed' || archive.status === 'aborted') && (
+              <span className="px-1.5 py-0.5 rounded text-[10px] leading-tight bg-status-error/80 text-white flex-shrink-0">
+                {archive.status === 'aborted' ? t('archives.card.cancelled') : t('archives.card.failed')}
+              </span>
+            )}
             {archive.timelapse_path && (
               <span title={t('archives.list.hasTimelapse')}>
                 <Film className="w-3.5 h-3.5 text-bambu-green flex-shrink-0" />
