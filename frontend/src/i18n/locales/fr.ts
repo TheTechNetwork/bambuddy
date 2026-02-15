@@ -1,4 +1,4 @@
-﻿export default {
+export default {
   // Navigation
   nav: {
     printers: 'Imprimantes',
@@ -1403,7 +1403,7 @@
     totalConsumption: 'Consommation totale',
     dataManagement: 'Gestion des données',
     storageUsage: 'Utilisation du stockage',
-    storageUsageDescription: 'Répartition de l’utilisation des données par catégorie',
+    storageUsageDescription: 'Répartition de l\'utilisation des données par catégorie',
     storageUsageTotal: 'Total',
     storageUsageErrors: 'Erreurs',
     storageUsageOtherBreakdown: 'Autre (inclut ressources statiques, scripts et fichiers de configuration)',
