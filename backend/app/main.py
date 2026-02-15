@@ -675,7 +675,9 @@ async def on_ams_change(printer_id: int, ams_data: list):
                         )
                         existing_assignment = existing.scalar_one_or_none()
                         if existing_assignment:
-                            # Sync spool weight_used from AMS remain if valid
+                            # Sync spool weight_used from AMS remain — only INCREASE, never decrease.
+                            # The AMS remain% is low-resolution (integer %, i.e. 10g steps for 1kg spool)
+                            # and must not overwrite precise values from the usage tracker (3MF/G-code).
                             remain_raw = tray.get("remain")
                             if remain_raw is not None and existing_assignment.spool:
                                 try:
@@ -685,11 +687,12 @@ async def on_ams_change(printer_id: int, ams_data: list):
                                 if 0 <= remain_val <= 100:
                                     lw = existing_assignment.spool.label_weight or 1000
                                     new_used = round(lw * (100 - remain_val) / 100.0, 1)
-                                    if abs((existing_assignment.spool.weight_used or 0) - new_used) > 1:
+                                    current_used = existing_assignment.spool.weight_used or 0
+                                    if new_used > current_used + 1:
                                         logger.info(
                                             "Weight sync: spool %d weight_used %s -> %s (remain=%d)",
                                             existing_assignment.spool_id,
-                                            existing_assignment.spool.weight_used,
+                                            current_used,
                                             new_used,
                                             remain_val,
                                         )
