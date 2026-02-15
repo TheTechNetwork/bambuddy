@@ -165,6 +165,7 @@ if not app_settings.debug:
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("paho.mqtt").setLevel(logging.WARNING)
 
 logging.info("Bambuddy starting - debug=%s, log_level=%s", app_settings.debug, log_level_str)
 from fastapi.responses import FileResponse
@@ -335,12 +336,14 @@ async def on_printer_status_change(printer_id: int, state: PrinterState):
     bed_target = round(temps.get("bed_target", 0))
     nozzle_target = round(temps.get("nozzle_target", 0))
 
+    # Include tray_now and vt_tray hash so external spool changes trigger broadcasts
+    vt_tray_key = hash(str(state.raw_data.get("vt_tray", []))) if state.raw_data else 0
     status_key = (
         f"{state.connected}:{state.state}:{state.progress}:{state.layer_num}:"
         f"{nozzle_temp}:{bed_temp}:{nozzle_2_temp}:{chamber_temp}:"
         f"{state.stg_cur}:{bed_target}:{nozzle_target}:"
         f"{state.cooling_fan_speed}:{state.big_fan1_speed}:{state.big_fan2_speed}:"
-        f"{state.chamber_light}:{state.active_extruder}"
+        f"{state.chamber_light}:{state.active_extruder}:{state.tray_now}:{vt_tray_key}"
     )
 
     # MQTT relay - publish status (before dedup check - always publish to MQTT)
@@ -673,7 +676,9 @@ async def on_ams_change(printer_id: int, ams_data: list):
                         )
                         existing_assignment = existing.scalar_one_or_none()
                         if existing_assignment:
-                            # Sync spool weight_used from AMS remain if valid
+                            # Sync spool weight_used from AMS remain — only INCREASE, never decrease.
+                            # The AMS remain% is low-resolution (integer %, i.e. 10g steps for 1kg spool)
+                            # and must not overwrite precise values from the usage tracker (3MF/G-code).
                             remain_raw = tray.get("remain")
                             if remain_raw is not None and existing_assignment.spool:
                                 try:
@@ -683,11 +688,12 @@ async def on_ams_change(printer_id: int, ams_data: list):
                                 if 0 <= remain_val <= 100:
                                     lw = existing_assignment.spool.label_weight or 1000
                                     new_used = round(lw * (100 - remain_val) / 100.0, 1)
-                                    if abs((existing_assignment.spool.weight_used or 0) - new_used) > 1:
+                                    current_used = existing_assignment.spool.weight_used or 0
+                                    if new_used > current_used + 1:
                                         logger.info(
                                             "Weight sync: spool %d weight_used %s -> %s (remain=%d)",
                                             existing_assignment.spool_id,
-                                            existing_assignment.spool.weight_used,
+                                            current_used,
                                             new_used,
                                             remain_val,
                                         )
@@ -707,6 +713,7 @@ async def on_ams_change(printer_id: int, ams_data: list):
                                 spool,
                                 printer_manager,
                                 db,
+                                tray_info_idx=tray_info_idx,
                             )
                             await db.commit()
                             await ws_manager.broadcast(

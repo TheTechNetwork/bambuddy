@@ -204,7 +204,7 @@ export interface PrinterStatus {
   hms_errors: HMSError[];
   ams: AMSUnit[];
   ams_exists: boolean;
-  vt_tray: AMSTray | null;  // Virtual tray / external spool
+  vt_tray: AMSTray[];  // Virtual tray / external spool(s)
   sdcard: boolean;  // SD card inserted
   store_to_sdcard: boolean;  // Store sent files on SD card
   timelapse: boolean;  // Timelapse recording active
@@ -249,6 +249,7 @@ export interface PrinterStatus {
   big_fan1_speed: number | null;     // Auxiliary fan
   big_fan2_speed: number | null;     // Chamber/exhaust fan
   heatbreak_fan_speed: number | null; // Hotend heatbreak fan
+  firmware_version: string | null;   // Firmware version from MQTT
 }
 
 export interface PrinterCreate {
@@ -748,8 +749,6 @@ export interface AppSettings {
   // Date/time format settings
   date_format: 'system' | 'us' | 'eu' | 'iso';
   time_format: 'system' | '12h' | '24h';
-  // Filament tracking
-  disable_filament_warnings: boolean;  // Disable insufficient filament warnings when printing/queueing
   // Default printer
   default_printer_id: number | null;
   // Dark mode theme settings
@@ -3030,6 +3029,8 @@ export const api = {
     request<SlicerSettingsResponse>(`/cloud/settings?version=${version}`),
   getBuiltinFilaments: () =>
     request<BuiltinFilament[]>('/cloud/builtin-filaments'),
+  getFilamentIdMap: () =>
+    request<Record<string, string>>('/cloud/filament-id-map'),
   getCloudSettingDetail: (settingId: string) =>
     request<SlicerSettingDetail>(`/cloud/settings/${settingId}`),
   createCloudSetting: (data: SlicerSettingCreate) =>
@@ -3362,9 +3363,9 @@ export const api = {
       body: JSON.stringify({ tray_uuid: trayUuid }),
     }),
   getSpoolmanSettings: () =>
-    request<{ spoolman_enabled: string; spoolman_url: string; spoolman_sync_mode: string; spoolman_disable_weight_sync: string; spoolman_report_partial_usage: string; disable_filament_warnings: string; }>('/settings/spoolman'),
-  updateSpoolmanSettings: (data: { spoolman_enabled?: string; spoolman_url?: string; spoolman_sync_mode?: string; spoolman_disable_weight_sync?: string; spoolman_report_partial_usage?: string; disable_filament_warnings?: string; }) =>
-    request<{ spoolman_enabled: string; spoolman_url: string; spoolman_sync_mode: string; spoolman_disable_weight_sync: string; spoolman_report_partial_usage: string; disable_filament_warnings: string; }>('/settings/spoolman', {
+    request<{ spoolman_enabled: string; spoolman_url: string; spoolman_sync_mode: string; spoolman_disable_weight_sync: string; spoolman_report_partial_usage: string; }>('/settings/spoolman'),
+  updateSpoolmanSettings: (data: { spoolman_enabled?: string; spoolman_url?: string; spoolman_sync_mode?: string; spoolman_disable_weight_sync?: string; spoolman_report_partial_usage?: string; }) =>
+    request<{ spoolman_enabled: string; spoolman_url: string; spoolman_sync_mode: string; spoolman_disable_weight_sync: string; spoolman_report_partial_usage: string; }>('/settings/spoolman', {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
@@ -3427,6 +3428,8 @@ export const api = {
     request<{ status: string }>('/inventory/colors/reset', { method: 'POST' }),
   lookupColor: (manufacturer: string, colorName: string, material?: string) =>
     request<ColorLookupResult>(`/inventory/colors/lookup?manufacturer=${encodeURIComponent(manufacturer)}&color_name=${encodeURIComponent(colorName)}${material ? `&material=${encodeURIComponent(material)}` : ''}`),
+  searchColors: (manufacturer?: string, material?: string) =>
+    request<ColorCatalogEntry[]>(`/inventory/colors/search?${manufacturer ? `manufacturer=${encodeURIComponent(manufacturer)}` : ''}${manufacturer && material ? '&' : ''}${material ? `material=${encodeURIComponent(material)}` : ''}`),
   linkTagToSpool: (spoolId: number, data: { tag_uid?: string; tray_uuid?: string; tag_type?: string; data_origin?: string }) =>
     request<InventorySpool>(`/inventory/spools/${spoolId}/link-tag`, {
       method: 'PATCH',
