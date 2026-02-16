@@ -498,7 +498,7 @@ function SortableQueueItem({
           {/* Progress bar for printing items - TODO: integrate with WebSocket */}
           {isPrinting && status && (
             <div className="mt-3">
-             <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center justify-between text-sm">
                 <div className="flex-1 bg-bambu-dark-tertiary rounded-full h-2 mr-3">
                   <div
                     className="bg-bambu-green h-2 rounded-full transition-all"
