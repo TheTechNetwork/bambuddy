@@ -1203,6 +1203,12 @@ export default {
     builtInFeatureUsage: 'Erfasst den Filamentverbrauch pro Druck',
     builtInFeatureCatalog: 'Spulen, Farben und K-Faktor-Profile verwalten',
     builtInFeatureThirdParty: 'Drittanbieter-Spulen können Inventarspulen zugewiesen werden',
+    amsSyncButton: 'Gewichte vom AMS synchronisieren',
+    amsSyncTitle: 'Spulengewichte vom AMS synchronisieren',
+    amsSyncMessage: 'Alle Inventar-Spulengewichte werden mit den aktuellen AMS-Restwerten der verbundenen Drucker überschrieben. Verwenden Sie dies zur Wiederherstellung beschädigter Gewichtsdaten. Drucker müssen online sein.',
+    amsSyncing: 'Synchronisiere...',
+    amsSyncSuccess: '{{synced}} Spule(n) synchronisiert, {{skipped}} übersprungen',
+    amsSyncError: 'Synchronisierung der Gewichte vom AMS fehlgeschlagen',
     // Spoolman settings
     spoolmanUrl: 'Spoolman URL',
     spoolmanUrlHint: 'URL Ihres Spoolman-Servers (z.B. http://localhost:7912)',

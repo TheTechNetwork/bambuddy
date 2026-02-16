@@ -3497,6 +3497,8 @@ export const api = {
     request<SpoolUsageRecord[]>(`/inventory/usage?limit=${limit}${printerId ? `&printer_id=${printerId}` : ''}`),
   clearSpoolUsageHistory: (spoolId: number) =>
     request<{ status: string }>(`/inventory/spools/${spoolId}/usage`, { method: 'DELETE' }),
+  syncWeightsFromAms: () =>
+    request<{ synced: number; skipped: number }>('/inventory/sync-ams-weights', { method: 'POST' }),
   getFilamentPresets: () =>
     request<SlicerSetting[]>('/cloud/filaments'),
 

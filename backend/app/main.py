@@ -689,7 +689,7 @@ async def on_ams_change(printer_id: int, ams_data: list):
                                     remain_val = int(remain_raw)
                                 except (TypeError, ValueError):
                                     remain_val = -1
-                                if 0 <= remain_val <= 100:
+                                if 1 <= remain_val <= 100:
                                     lw = existing_assignment.spool.label_weight or 1000
                                     new_used = round(lw * (100 - remain_val) / 100.0, 1)
                                     current_used = existing_assignment.spool.weight_used or 0
