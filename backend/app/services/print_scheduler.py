@@ -903,11 +903,30 @@ class PrintScheduler:
                 await self._power_off_if_needed(db, item)
                 return
             # Library files store absolute paths
-            from pathlib import Path
-
             lib_path = Path(library_file.file_path)
             file_path = lib_path if lib_path.is_absolute() else settings.base_dir / library_file.file_path
             filename = library_file.filename
+
+            # Create archive from library file so usage tracking has access to the 3MF
+            try:
+                from backend.app.services.archive import ArchiveService
+
+                archive_service = ArchiveService(db)
+                archive = await archive_service.archive_print(
+                    printer_id=item.printer_id,
+                    source_file=file_path,
+                )
+                if archive:
+                    item.archive_id = archive.id
+                    await db.flush()
+                    logger.info(
+                        "Queue item %s: Created archive %s from library file %s",
+                        item.id,
+                        archive.id,
+                        item.library_file_id,
+                    )
+            except Exception as e:
+                logger.warning("Queue item %s: Failed to create archive from library file: %s", item.id, e)
 
         else:
             # Neither archive nor library file specified
