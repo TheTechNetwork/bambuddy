@@ -754,3 +754,72 @@ class TestAttachTimelapseBackgroundConversion:
         mock_create_task.assert_called_once()
         # Verify task name includes archive ID
         assert "timelapse-convert-1" in mock_create_task.call_args[1]["name"]
+
+
+class TestDeleteTimelapse:
+    """Test DELETE /archives/{id}/timelapse endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_delete_timelapse_removes_file_and_clears_db(self, tmp_path):
+        """Deleting a timelapse should remove the file and clear the DB path."""
+        from backend.app.api.routes.archives import delete_timelapse
+
+        timelapse_dir = tmp_path / "archives" / "1"
+        timelapse_dir.mkdir(parents=True)
+        timelapse_file = timelapse_dir / "timelapse.mp4"
+        timelapse_file.write_bytes(b"fake video data")
+
+        mock_archive = MagicMock()
+        mock_archive.timelapse_path = "archives/1/timelapse.mp4"
+
+        mock_db = AsyncMock()
+        mock_db.execute = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = mock_archive
+        mock_db.execute.return_value = mock_result
+
+        with patch("backend.app.api.routes.archives.settings") as mock_settings:
+            mock_settings.base_dir = tmp_path
+            result = await delete_timelapse(archive_id=1, db=mock_db)
+
+        assert result == {"status": "deleted"}
+        assert mock_archive.timelapse_path is None
+        mock_db.commit.assert_awaited_once()
+        assert not timelapse_file.exists()
+
+    @pytest.mark.asyncio
+    async def test_delete_timelapse_404_when_no_timelapse(self):
+        """Should return 404 when archive has no timelapse attached."""
+        from fastapi import HTTPException
+
+        from backend.app.api.routes.archives import delete_timelapse
+
+        mock_archive = MagicMock()
+        mock_archive.timelapse_path = None
+
+        mock_db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = mock_archive
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await delete_timelapse(archive_id=1, db=mock_db)
+
+        assert exc_info.value.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_delete_timelapse_404_when_archive_not_found(self):
+        """Should return 404 when archive doesn't exist."""
+        from fastapi import HTTPException
+
+        from backend.app.api.routes.archives import delete_timelapse
+
+        mock_db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await delete_timelapse(archive_id=999, db=mock_db)
+
+        assert exc_info.value.status_code == 404

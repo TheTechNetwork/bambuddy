@@ -2654,6 +2654,10 @@ export const api = {
       `/archives/${id}/timelapse/select?filename=${encodeURIComponent(filename)}`,
       { method: 'POST' }
     ),
+  deleteArchiveTimelapse: (id: number) =>
+    request<{ status: string }>(`/archives/${id}/timelapse`, {
+      method: 'DELETE',
+    }),
   uploadArchiveTimelapse: async (archiveId: number, file: File): Promise<{ status: string; filename: string }> => {
     const formData = new FormData();
     formData.append('file', file);

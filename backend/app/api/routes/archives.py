@@ -1159,6 +1159,33 @@ async def get_timelapse(
     )
 
 
+@router.delete("/{archive_id}/timelapse")
+async def delete_timelapse(
+    archive_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.ARCHIVES_DELETE_OWN),
+):
+    """Remove the timelapse video from an archive."""
+    result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
+    archive = result.scalar_one_or_none()
+    if not archive:
+        raise HTTPException(404, "Archive not found")
+
+    if not archive.timelapse_path:
+        raise HTTPException(404, "No timelapse attached to this archive")
+
+    # Delete the file
+    timelapse_path = settings.base_dir / archive.timelapse_path
+    if timelapse_path.exists():
+        timelapse_path.unlink()
+
+    # Clear the path in database
+    archive.timelapse_path = None
+    await db.commit()
+
+    return {"status": "deleted"}
+
+
 @router.post("/{archive_id}/timelapse/scan")
 async def scan_timelapse(
     archive_id: int,
