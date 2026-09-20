@@ -2533,7 +2533,7 @@ export interface PrintQueueItem {
   target_model: string | null;  // Target printer model for model-based assignment
   target_location: string | null;  // Target location filter for model-based assignment
   required_filament_types: string[] | null;  // Required filament types for model-based assignment
-  waiting_reason: string | null;  // Why a model-based job hasn't started yet
+  waiting_reason: string | null;  // Why this job hasn't started yet (empty once it can)
   // Cross-model alternatives (#671), in priority order. Empty for ordinary
   // items. Present until dispatch resolves one, after which library_file_id and
   // target_model name the candidate that actually ran.

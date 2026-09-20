@@ -1291,6 +1291,95 @@ class PrintScheduler:
                 claimed_printers.add(printer_id)
                 mark_busy(printer_id, "selected for dispatch in this pass")
 
+            # The user-facing half of `busy_reasons` (#3074). The same decisions
+            # worded for a different audience: the log wants "still inside its
+            # post-dispatch hold window", the queue row wants to know the printer
+            # is taken and nothing is broken. Only the cases that would read wrong
+            # as a plain "Busy" are recorded here; the rest fall back to it.
+            item_hold_reasons: dict[int, str] = {}
+
+            # Names and models for the printers this pass may have to write a
+            # waiting reason about, read once rather than per skip per tick. The
+            # model-based branch already has its names from `_printers_for_model`.
+            pinned_printer_ids = {i.printer_id for i in items if i.printer_id}
+            pinned_printers: dict[int, tuple[str, str]] = {}
+            if pinned_printer_ids:
+                pinned_rows = await db.execute(
+                    select(Printer.id, Printer.name, Printer.model).where(Printer.id.in_(pinned_printer_ids))
+                )
+                pinned_printers = {pid: (name or "", model or "") for pid, name, model in pinned_rows.all()}
+
+            def printer_label(printer_id: int) -> str:
+                """What to call this printer in a queue row."""
+                entry = pinned_printers.get(printer_id)
+                return (entry[0] if entry else "") or f"printer {printer_id}"
+
+            async def hold_item(item: PrintQueueItem, reason: str | None, *, notify: bool = True) -> None:
+                """Record why *item* is not going out, in the words the queue row shows.
+
+                The fixed-printer branch's single writer for ``waiting_reason``
+                (#3074). Before this, the sensor interlock was the only thing that
+                wrote the field there, so an item pinned to a printer that was
+                merely printing sat at `pending` with nothing to show for it —
+                indistinguishable from a queue that had stopped working — while
+                the same job queued as "Any <model>" explained itself.
+
+                Every exit from that branch now calls this, which is also what
+                replaced the interlock's old habit of clearing the field up front:
+                a lifted hold cannot leave "Waiting on Enclosure Door" standing,
+                because whichever exit runs next overwrites it and the dispatch
+                path clears it.
+
+                A notification goes out when this item starts asking for
+                something, and only then: the new reason needs the user, and what
+                it replaced did not. "What it replaced did not" has to include a
+                busy-only reason, not just an empty one. The sequence this branch
+                actually produces is a print running (``Busy: X1C-01``) and then
+                the plate it left behind (``Waiting for plate confirmation``), and
+                testing "was the field empty" would call that no transition at all
+                and stay quiet through the one case worth saying out loud.
+
+                The cost is that a printer dropping offline, coming back busy and
+                dropping again asks twice rather than once. That is the honest
+                reading — it went wrong twice — and the alternative was a rule
+                that never fired for the case this was built for.
+
+                *notify* is how a caller opts out. The sensor interlock does: it
+                has never sent this notification, and a change about what the
+                queue *displays* is not the place to start (#1148).
+                """
+                if item.waiting_reason == reason:
+                    return
+                # Busy-only and empty are the same thing here: neither is the
+                # queue asking the user for anything.
+                was_asking = bool(item.waiting_reason) and not self._is_busy_only(item.waiting_reason)
+                item.waiting_reason = reason
+                await db.commit()
+                if not notify or not reason or was_asking or self._is_busy_only(reason):
+                    return
+                try:
+                    job_name = await self._get_job_name(db, item)
+                    entry = pinned_printers.get(item.printer_id) if item.printer_id else None
+                    await notification_service.on_queue_job_waiting(
+                        job_name=job_name,
+                        target_model=(entry[1] if entry else "") or "",
+                        waiting_reason=reason,
+                        db=db,
+                    )
+                except Exception as e:
+                    # A queue that cannot say why it is waiting is the bug being
+                    # fixed here; a queue that stops dispatching because a
+                    # notification provider is down would be a worse one.
+                    logger.debug("Waiting notification failed for item %s: %s", item.id, e)
+
+            async def hold_for_printer(
+                item: PrintQueueItem, printer_id: int, log_reason: str, item_reason: str
+            ) -> None:
+                """Take *printer_id* out of this pass and tell the item's owner why."""
+                mark_busy(printer_id, log_reason)
+                item_hold_reasons.setdefault(printer_id, item_reason)
+                await hold_item(item, item_reason)
+
             # Defense-in-depth (#1157): augment busy_printers with any printer
             # still in its post-dispatch hold window. Empirically, the DB seed
             # above can miss in-flight items in a multi-plate batch — same-file
@@ -1415,11 +1504,18 @@ class PrintScheduler:
                     if sched.tzinfo is None:
                         sched = sched.replace(tzinfo=timezone.utc)
                     if sched > datetime.now(timezone.utc):
+                        # Waiting on the clock, not on a printer.
+                        await hold_item(item, None)
                         skip_reasons["scheduled_future"] = skip_reasons.get("scheduled_future", 0) + 1
                         continue
 
                 # Skip items that require manual start
                 if item.manual_start:
+                    # Waiting on the user, not on a printer. Cleared here because
+                    # this is the last pass that will look at the row: a staged
+                    # item never reaches the branches below again, so a reason
+                    # left from before it was staged would stand forever (#3074).
+                    await hold_item(item, None)
                     skip_reasons["manual_start"] = skip_reasons.get("manual_start", 0) + 1
                     continue
 
@@ -1430,24 +1526,35 @@ class PrintScheduler:
                     # to shut the enclosure" need to read differently, and only
                     # one of them is something the user can fix.
                     #
-                    # The interlock is the only thing that writes a
-                    # waiting_reason on this branch — the model-based branch
-                    # nulls it at the moment it assigns a printer — so any
-                    # reason still standing once the hold lifts is stale and is
-                    # cleared here. Doing it at dispatch instead would leave a
-                    # shut door reading "Waiting on Enclosure Door" for as long
-                    # as the printer stayed busy with something else.
+                    # It used to be the only thing that wrote a waiting_reason on
+                    # this branch, and it cleared the field up front so a lifted
+                    # hold could not leave a shut door reading "Waiting on
+                    # Enclosure Door". `hold_item` carries that guarantee now —
+                    # every exit below writes — so the clear is gone and the
+                    # interlock is an ordinary hold like the rest (#3074).
                     interlock_reason = interlocked.get(item.printer_id)
-                    reason = f"Waiting on {interlock_reason}" if interlock_reason else None
-                    if item.waiting_reason != reason:
-                        item.waiting_reason = reason
-                        await db.commit()
                     if interlock_reason:
+                        # Silent, exactly as it has always been. #1148 built this
+                        # as a hold that shows on the row, never as an alert, and
+                        # routing it through the shared writer must not quietly
+                        # turn every open door into a notification.
+                        await hold_item(item, f"Waiting on {interlock_reason}", notify=False)
                         skip_reasons["sensor_interlock"] = skip_reasons.get("sensor_interlock", 0) + 1
                         continue
 
                     # Specific printer assignment (existing behavior)
                     if item.printer_id in busy_printers:
+                        # Whatever took the printer out of this pass — a print
+                        # already running on it, a post-dispatch hold, an upload
+                        # still in flight, an item ahead of this one in the same
+                        # pass — reads the same way from the queue: the printer is
+                        # taken and this item is in line for it. The exceptions
+                        # that do not (an offline printer, say) recorded their own
+                        # wording in `item_hold_reasons` when they held it.
+                        await hold_item(
+                            item,
+                            item_hold_reasons.get(item.printer_id) or f"Busy: {printer_label(item.printer_id)}",
+                        )
                         continue
 
                     # Check if printer is idle
@@ -1479,16 +1586,36 @@ class PrintScheduler:
                                 printer_idle = self._is_printer_idle(item.printer_id, require_plate_clear)
                             else:
                                 logger.warning("Could not power on printer %s via smart plug", item.printer_id)
-                                mark_busy(item.printer_id, "smart-plug power-on failed")
+                                await hold_for_printer(
+                                    item,
+                                    item.printer_id,
+                                    "smart-plug power-on failed",
+                                    f"Offline: {printer_label(item.printer_id)} — the smart plug could not power it on",
+                                )
                                 continue
                         else:
-                            # No plug or auto_on disabled
-                            mark_busy(item.printer_id, "offline, with no smart plug to power it on")
+                            # No plug or auto_on disabled. Worded exactly as the
+                            # model-based branch words it (#2786): this is the one
+                            # entry on that list the user has to act on, because
+                            # Bambuddy will never switch this printer on itself.
+                            await hold_for_printer(
+                                item,
+                                item.printer_id,
+                                "offline, with no smart plug to power it on",
+                                f"Offline, no Auto On smart plug: {printer_label(item.printer_id)}",
+                            )
                             continue
 
                     # Check if printer is idle (busy with another print)
                     if not printer_idle:
-                        mark_busy(item.printer_id, "not idle")
+                        await hold_for_printer(
+                            item,
+                            item.printer_id,
+                            "not idle",
+                            self._pinned_hold_reason(
+                                item.printer_id, printer_label(item.printer_id), require_plate_clear
+                            ),
+                        )
                         continue
 
                     # Drying blocks the queue, if the user asked it to. A hold
@@ -1497,7 +1624,14 @@ class PrintScheduler:
                     if self._drying_in_progress.get(item.printer_id) and await self._get_bool_setting(
                         db, "queue_drying_block"
                     ):
-                        mark_busy(item.printer_id, "drying, and drying is set to block the queue")
+                        # Busy-shaped on purpose: the cycle ends on its own and
+                        # the job goes out, so there is nothing to alert about.
+                        await hold_for_printer(
+                            item,
+                            item.printer_id,
+                            "drying, and drying is set to block the queue",
+                            f"Busy: {printer_label(item.printer_id)} (drying)",
+                        )
                         continue
 
                     # Check condition (previous print success)
@@ -1506,6 +1640,8 @@ class PrintScheduler:
                             item.status = "skipped"
                             item.error_message = "Previous print failed or was aborted"
                             item.completed_at = datetime.now(timezone.utc)
+                            # Not pending any more, so not waiting for anything.
+                            item.waiting_reason = None
                             await db.commit()
                             logger.info("Skipped queue item %s - previous print failed", item.id)
 
@@ -1535,6 +1671,10 @@ class PrintScheduler:
                     # promote the item to manual_start so the user must
                     # acknowledge via the ▶ button (which re-checks live).
                     if await self._block_on_filament_deficit(db, item):
+                        # Now staged for the user to start by hand, and the row
+                        # shows the filament-short badge instead. Cleared because
+                        # a staged item never reaches this branch again.
+                        await hold_item(item, None)
                         continue
 
                     # Hold this item back for the next pass rather than racing
@@ -1543,7 +1683,12 @@ class PrintScheduler:
                     # its place in this printer's queue.
                     if _library_row_conflict(item):
                         skip_reasons["library_row_in_use"] = skip_reasons.get("library_row_in_use", 0) + 1
-                        mark_busy(item.printer_id, "holding its place while another item releases a library row")
+                        await hold_for_printer(
+                            item,
+                            item.printer_id,
+                            "holding its place while another item releases a library row",
+                            f"Busy: {printer_label(item.printer_id)}",
+                        )
                         continue
 
                     # Print takes priority: stop a cycle Bambuddy armed, now
@@ -1571,6 +1716,11 @@ class PrintScheduler:
                     # Queue the dispatch instead of running it here — see
                     # _dispatch_selected(). busy_printers still gets the printer
                     # immediately, so nothing else in this pass can target it.
+                    #
+                    # The reason goes first: this item is not waiting for anything
+                    # any more, and the model-based branch clears its own at the
+                    # equivalent moment (#3074).
+                    await hold_item(item, None)
                     _claim_library_row(item)
                     dispatch_ids.append(item.id)
                     claim_printer(item.printer_id)
@@ -3780,6 +3930,28 @@ class PrintScheduler:
         if not idle:
             logger.debug("Printer %d: not idle — state=%s", printer_id, state.state)
         return idle
+
+    @staticmethod
+    def _pinned_hold_reason(printer_id: int, printer_name: str, require_plate_clear: bool) -> str:
+        """Why a connected, non-idle printer cannot take this job, for the queue row (#3074).
+
+        Only ever asked about a printer :meth:`_is_printer_idle` has just refused
+        and that the fixed-printer branch has already found connected, so the two
+        offline cases answer at their own exits and never arrive here.
+
+        The default is the model-based branch's ``Busy:`` wording, which
+        :meth:`_is_busy_only` reads as "resolves itself, stay quiet". That is also
+        the right answer for the connected-but-no-telemetry second or two after a
+        reconnect: the model-based branch has always reported it that way, and it
+        is not something to wake anybody up for.
+
+        A plate nobody has confirmed is the one case here that does not resolve
+        itself — somebody has to walk over to the printer — so it is worded as
+        itself and allowed to notify.
+        """
+        if require_plate_clear and printer_manager.is_awaiting_plate_clear(printer_id):
+            return f"Waiting for plate confirmation: {printer_name}"
+        return f"Busy: {printer_name}"
 
     async def _get_setting(self, db: AsyncSession, key: str) -> str | None:
         """Read a setting value from the database."""

@@ -1836,10 +1836,12 @@ export function QueuePage() {
   // Queue items eligible for an "if started now" ETA (#2740).
   //
   // The ETA answers "when would this finish if it began right now", so it may
-  // only appear on items that really could begin right now. Deriving that from
-  // waiting_reason alone is not enough: the scheduler only writes that field on
-  // the model-based assignment path (print_scheduler.py), so an item pinned to a
-  // specific printer sits behind a running job with waiting_reason still NULL.
+  // only appear on items that really could begin right now. waiting_reason now
+  // covers the pinned-printer case too (#3074), but it is still not enough on
+  // its own: it says whether the scheduler had a reason to hold the item on its
+  // last pass, not whether this item is the one that printer takes next. Two
+  // items pinned to the same free printer both come back with no reason, and
+  // only one of them can start now — which is what the ordering below works out.
   //
   // Computed from the unfiltered queue on purpose — hiding a printer behind the
   // location filter must not make its printer look free.
