@@ -94,6 +94,7 @@ from backend.app.utils.threemf_tools import (
     extract_embedded_presets_from_3mf,
     extract_nozzle_mapping_from_3mf,
     extract_project_filaments_from_3mf,
+    sanitize_project_settings_sentinels,
     select_plate_gcode_name,
     supports_enabled_in_config,
 )
@@ -3492,142 +3493,6 @@ async def get_library_file_filament_requirements(
     }
 
 
-_STRIPPABLE_3MF_CONFIGS = frozenset(
-    {
-        # Settings dump used by --load-settings validation; the CLI tries to
-        # match its sentinel values (`prime_tower_brim_width: -1`, empty
-        # arrays) against the supplied profile and rejects out-of-range.
-        "Metadata/project_settings.config",
-        # Per-object settings overrides referencing the source plate's
-        # filament IDs / printer IDs. When the user picks a different
-        # printer / filament triplet, the IDs no longer resolve and the
-        # CLI exits non-zero on input validation.
-        "Metadata/model_settings.config",
-        # Slicer-version + plate-config + filament-mapping snapshot from
-        # the original slice. Includes the original printer model and
-        # filament references; mismatches against `--load-settings`
-        # consistently surfaced as `Slicer CLI failed (500)` for every
-        # 3MF in production. Removing it lets the CLI build a fresh slice
-        # plan from the supplied profile triplet.
-        "Metadata/slice_info.config",
-        # Multi-part / split-mesh metadata referencing object IDs from the
-        # original slice. Strip for the same reason — preserves the geometry
-        # in `3D/3dmodel.model` while dropping the orphan references.
-        "Metadata/cut_information.xml",
-    }
-)
-
-
-def _strip_3mf_embedded_settings(zip_bytes: bytes) -> bytes:
-    """Remove embedded slicer-config metadata from a 3MF.
-
-    Bambuddy supplies the slicer profile triplet via the sidecar's
-    ``--load-settings`` path; the 3MF's embedded settings would otherwise be
-    validated by the CLI first and can fail with sentinel-value range
-    checks (`prime_tower_brim_width: -1 not in range`, etc.) regardless of
-    what we pass via ``--load-settings``. Stripping the embedded configs
-    forces the CLI to use the supplied profiles only. Geometry
-    (``3D/3dmodel.model``), thumbnails, color, and multi-part data inside
-    the 3MF are preserved.
-
-    The set of strippable filenames is centralised in
-    ``_STRIPPABLE_3MF_CONFIGS`` — see that constant for the per-file
-    rationale. Project-settings alone wasn't enough: real-world Bambu
-    Studio 3MFs cross-reference printer / filament IDs from the other
-    metadata configs, and any single leftover triggered the validation
-    failure that made every profile-driven slice fall back to embedded
-    settings.
-    """
-    from io import BytesIO
-
-    src = BytesIO(zip_bytes)
-    dst = BytesIO()
-    with zipfile.ZipFile(src, "r") as zin, zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED) as zout:
-        for item in zin.infolist():
-            if item.filename in _STRIPPABLE_3MF_CONFIGS:
-                continue
-            zout.writestr(item, zin.read(item.filename))
-    return dst.getvalue()
-
-
-# Keys in ``Metadata/project_settings.config`` that BambuStudio writes ``"-1"``
-# to when the user wants the value inherited from the parent process preset.
-# The CLI's ``StaticPrintConfig`` validator runs against the embedded settings
-# *before* ``--load-settings`` overrides apply, so a sentinel ``"-1"`` trips
-# the field's lower-bound range check and the CLI exits non-zero before our
-# profile triplet is ever consulted (#1201 — MakerWorld P2S models).
-#
-# Allowlisted (rather than "strip every '-1' value") because some fields
-# legitimately accept negative numbers (z_offset, translation values, etc.)
-# and a blanket strip would silently corrupt those.
-#
-# Add new entries here as more reports surface — the slicer's error message
-# names the offending field directly (`<field>: -1 not in range [...]`).
-_PROJECT_SETTINGS_SENTINEL_KEYS = frozenset(
-    {
-        # Reported in #1201 (MakerWorld P2S 3MFs).
-        "raft_first_layer_expansion",
-        "tree_support_wall_count",
-        # Cited in the strip-experiment comment block above as a known sentinel
-        # case from earlier reports.
-        "prime_tower_brim_width",
-    }
-)
-
-
-def _sanitize_project_settings_sentinels(zip_bytes: bytes) -> bytes:
-    """Strip ``"-1"`` inherit-from-parent sentinels from the 3MF's
-    ``Metadata/project_settings.config`` so the slicer CLI's range validator
-    accepts the file (#1201).
-
-    Removes only allowlisted keys (see ``_PROJECT_SETTINGS_SENTINEL_KEYS``)
-    when their value is exactly ``"-1"``. The rest of the config — and every
-    other entry in the zip — is preserved byte-for-byte. Unlike the earlier
-    full-strip experiment (see ``_strip_3mf_embedded_settings`` and the
-    cautionary comment in ``_run_slicer_with_fallback``) this leaves
-    ``StaticPrintConfig`` initialisation intact: the file is still present,
-    still parses, and the slicer falls back to the supplied
-    ``--load-settings`` value for the removed key.
-
-    Returns the original bytes unchanged when no sanitisation is needed
-    (input isn't a valid zip, no ``project_settings.config``, no allowlisted
-    sentinels present, or any other parse failure) so the caller can pass
-    the result on without further checks.
-    """
-    from io import BytesIO
-
-    try:
-        with zipfile.ZipFile(BytesIO(zip_bytes), "r") as zin:
-            if "Metadata/project_settings.config" not in zin.namelist():
-                return zip_bytes
-            try:
-                config = json.loads(zin.read("Metadata/project_settings.config").decode("utf-8"))
-            except (json.JSONDecodeError, UnicodeDecodeError):
-                return zip_bytes
-            if not isinstance(config, dict):
-                return zip_bytes
-            removed = [key for key in _PROJECT_SETTINGS_SENTINEL_KEYS if config.get(key) == "-1"]
-            if not removed:
-                return zip_bytes
-            for key in removed:
-                config.pop(key, None)
-            patched = json.dumps(config)
-            logger.info(
-                "3MF sanitiser: removed sentinel '-1' for keys %s — slicer will use --load-settings defaults",
-                sorted(removed),
-            )
-            dst = BytesIO()
-            with zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED) as zout:
-                for item in zin.infolist():
-                    if item.filename == "Metadata/project_settings.config":
-                        zout.writestr(item, patched)
-                    else:
-                        zout.writestr(item, zin.read(item.filename))
-            return dst.getvalue()
-    except (zipfile.BadZipFile, OSError):
-        return zip_bytes
-
-
 def _patch_process_bed_type(process_json: str, bed_type: str) -> str:
     """Overwrite ``curr_bed_type`` in a process-profile JSON before forwarding
     to the slicer sidecar.
@@ -4022,13 +3887,14 @@ async def _run_slicer_with_fallback(
     is_3mf = model_filename.lower().endswith(".3mf")
     primary_bytes = model_bytes
     if is_3mf:
-        # Strip "-1" inherit-from-parent sentinels from
-        # Metadata/project_settings.config so the CLI's StaticPrintConfig
-        # range validator accepts the file (#1201). Surgical — keeps the
-        # config present, just removes the offending keys; the supplied
-        # --load-settings (and the fallback's embedded values for keys we
-        # didn't touch) still drive the slice.
-        primary_bytes = _sanitize_project_settings_sentinels(primary_bytes)
+        # Strip inherit/unset sentinels from Metadata/project_settings.config
+        # so the CLI's StaticPrintConfig range validator accepts the file
+        # (#1201, #3030). Surgical — keeps the config present, just removes
+        # the offending keys; the supplied --load-settings (and the fallback's
+        # embedded values for keys we didn't touch) still drive the slice.
+        # The preview-slice path applies the same sanitiser in
+        # ``slice_preview.get_preview_filaments``.
+        primary_bytes = sanitize_project_settings_sentinels(primary_bytes)
 
         # #2622: the process settings the file's designer moved off the stock
         # preset. Read once — the support patch below needs to know which of
