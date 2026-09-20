@@ -904,6 +904,39 @@ class TestArchivesAPI:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
+    async def test_items_printed_accepts_zero_for_a_ruined_plate(
+        self, async_client: AsyncClient, archive_factory, printer_factory, db_session
+    ):
+        """A jam can ruin every part on the plate while the printer still
+        reports success (#3051). The project's completed-items count sums this
+        column, so zero has to be storable, not floored to one.
+        """
+        printer = await printer_factory()
+        archive = await archive_factory(printer.id, quantity=4)
+
+        response = await async_client.patch(f"/api/v1/archives/{archive.id}", json={"quantity": 0})
+
+        assert response.status_code == 200, response.text
+        assert response.json()["quantity"] == 0
+        await db_session.refresh(archive)
+        assert archive.quantity == 0
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_items_printed_refuses_a_negative_count(
+        self, async_client: AsyncClient, archive_factory, printer_factory
+    ):
+        """Zero means "nothing came off the plate"; below that would subtract
+        from the project totals this column feeds."""
+        printer = await printer_factory()
+        archive = await archive_factory(printer.id, quantity=4)
+
+        response = await async_client.patch(f"/api/v1/archives/{archive.id}", json={"quantity": -1})
+
+        assert response.status_code == 422, response.text
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_update_archive_failure_reason_mirrors_to_print_log_entry(
         self, async_client: AsyncClient, archive_factory, printer_factory, db_session
     ):
