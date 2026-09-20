@@ -469,16 +469,40 @@ export function ConfigureAmsSlotModal({
           || '';
         settingId = '';
       } else if (isOrca) {
-        // Orca Cloud presets have a UUID setting_id that Bambu printers can't
-        // resolve; treat them like local imports — derive a generic tray_info
-        // _idx from the parsed material, leave settingId empty so the slicer
-        // doesn't get a foreign cloud ID it can't look up.
-        const material = (MATERIAL_TYPES.includes(parsedMat) ? parsedMat : parsed.material || '').toUpperCase();
-        trayInfoIdx = GENERIC_IDS[material]
-          || GENERIC_IDS[material.replace(/[-\s]?CF$/, '')]
-          || GENERIC_IDS[material.replace(/\+$/, '')]
-          || GENERIC_IDS[material.split(/[-\s]/)[0]]
-          || '';
+        // An Orca Cloud profile's setting_id is a UUID the printer cannot hold,
+        // so this used to skip straight to a generic — which meant every Orca
+        // custom filament reached the slicer as "Generic <material>", without
+        // ever asking whether the profile had a usable id (#3003).
+        //
+        // It usually does. The profile's slicer JSON carries its own
+        // filament_id, the same 8-character "P…" the printer stores for a
+        // Bambu custom preset, and OrcaProfileDetail deliberately exposes that
+        // JSON under `setting` in the shape SlicerSettingDetail uses. So the
+        // lookup is the same one the Bambu Cloud branch does below.
+        //
+        // settingId stays empty either way: it is the UUID that is foreign to
+        // the slicer, not the filament id.
+        let orcaFilamentId = '';
+        try {
+          const orcaDetail = await api.orcaCloudGetProfile(orcaSettingId);
+          const fromProfile = orcaDetail.setting?.filament_id;
+          if (typeof fromProfile === 'string' && fromProfile) {
+            orcaFilamentId = fromProfile;
+          }
+        } catch (e) {
+          console.warn('Failed to fetch Orca Cloud profile for filament_id:', e);
+        }
+        trayInfoIdx = orcaFilamentId;
+        if (!trayInfoIdx) {
+          // No id of its own — fall back to the generic for the material, the
+          // same last resort every other source ends at.
+          const material = (MATERIAL_TYPES.includes(parsedMat) ? parsedMat : parsed.material || '').toUpperCase();
+          trayInfoIdx = GENERIC_IDS[material]
+            || GENERIC_IDS[material.replace(/[-\s]?CF$/, '')]
+            || GENERIC_IDS[material.replace(/\+$/, '')]
+            || GENERIC_IDS[material.split(/[-\s]/)[0]]
+            || '';
+        }
         settingId = '';
       } else if (isBuiltin) {
         // Built-in presets use the filament_id directly as tray_info_idx
@@ -495,12 +519,37 @@ export function ConfigureAmsSlotModal({
         if (!selectedPresetId.startsWith('GFS')) {
           try {
             const detail = await api.getCloudSettingDetail(selectedPresetId);
-            if (detail.filament_id) {
-              trayInfoIdx = detail.filament_id;
+            // The preset's own filament_id is what puts it in the slot as
+            // itself — the printer stores that id and the slicer matches its
+            // presets against it. Bambu Cloud returns it on the envelope for
+            // some presets and inside the preset JSON under `setting` for
+            // others; looking only at the envelope is how a custom preset
+            // silently became its inherited base profile (#3003).
+            const nested = detail.setting?.filament_id;
+            const ownFilamentId = detail.filament_id || (typeof nested === 'string' ? nested : '');
+            if (ownFilamentId) {
+              trayInfoIdx = ownFilamentId;
             }
           } catch (e) {
             console.warn('Failed to fetch preset detail for filament_id:', e);
           }
+        }
+
+        // Last resort: neither place had one, so trayInfoIdx is still the
+        // cloud setting_id — and sending one is worse than sending nothing
+        // (#3003). tray_info_idx is 8 characters on the printer; an
+        // 18-character PFUS is stored truncated and acknowledged as a success,
+        // so the slot ends up holding an id that resolves nowhere — the slicer
+        // shows "Generic", and the calibration table, keyed by this field,
+        // loses the slot too. Blank means the backend picks the slot's
+        // existing filament id or a generic for the material; settingId still
+        // carries the preset.
+        if (/^(PFUS|PFSP|PFCN)/.test(trayInfoIdx)) {
+          console.warn(
+            `Cloud preset ${selectedPresetId} carries no filament_id in either place; ` +
+            'sending no tray_info_idx so the printer keeps a resolvable one.'
+          );
+          trayInfoIdx = '';
         }
       }
 
