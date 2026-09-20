@@ -6928,10 +6928,13 @@ export default {
         warn: 'Port {{port}} erişilemez. Canlı kamera görünümü çalışmayacak. Bu, baskıyı etkilemez.',
       },
       network_mode: {
-        title: 'Docker ağ modu',
-        pass: 'Ana bilgisayar ağ modunda çalışıyor.',
-        warn: 'Bambuddy, Docker köprü ağı kullanılarak çalışıyor. Yazıcı keşfi ve Sanal Yazıcı, ana bilgisayar ağ modu gerektirir — konteyneri "network_mode: host" ile yeniden oluşturun.',
-        skip: 'Docker\'da çalışmıyor — uygulanamaz.',
+        title: 'Konteyner ağ modu',
+        genericRuntime: 'bir konteyner',
+        pass: '{{runtime}} içinde ana bilgisayar ağıyla çalışıyor.',
+        warn: 'Bambuddy, {{runtime}} içinde köprü ağıyla çalışıyor. Yazıcı keşfi ve Sanal Yazıcı ana bilgisayar ağı gerektirir — konteyneri ana bilgisayar ağıyla yeniden oluşturun (docker-compose için "network_mode: host", Podman için "--network=host").',
+        skip: 'Bir konteyner içinde çalışmıyor — uygulanamaz.',
+        skip_unknown: 'Bambuddy {{runtime}} içinde çalışıyor ancak ağ modu belirlenemedi. Yazıcı keşfi veya Sanal Yazıcı çalışmıyorsa konteyneri ana bilgisayar ağıyla yeniden oluşturun.',
+        skip_system_container: 'Bambuddy, sanal makine gibi doğrudan yerel ağda bulunan bir {{runtime}} sistem konteyneri içinde çalışıyor — uygulanamaz.',
       },
       subnet: {
         title: 'Ağ alt ağı',

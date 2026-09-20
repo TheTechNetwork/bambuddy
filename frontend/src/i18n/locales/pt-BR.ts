@@ -6978,10 +6978,13 @@ export default {
         warn: 'A porta {{port}} está inacessível. A visualização ao vivo da câmera não funcionará. Isso não afeta a impressão.',
       },
       network_mode: {
-        title: 'Modo de rede Docker',
-        pass: 'Executando no modo de rede host.',
-        warn: 'O Bambuddy está sendo executado em rede Docker bridge. A descoberta de impressoras e a impressora virtual precisam do modo de rede host — recrie o contêiner com "network_mode: host".',
-        skip: 'Não está sendo executado no Docker — não aplicável.',
+        title: 'Modo de rede do contêiner',
+        genericRuntime: 'um contêiner',
+        pass: 'Executando em {{runtime}} com rede host.',
+        warn: 'O Bambuddy está sendo executado em {{runtime}} com rede bridge. A descoberta de impressoras e a impressora virtual precisam da rede host — recrie o contêiner com rede host ("network_mode: host" no docker-compose, "--network=host" no Podman).',
+        skip: 'Não está sendo executado em um contêiner — não aplicável.',
+        skip_unknown: 'O Bambuddy está sendo executado em {{runtime}}, mas não foi possível determinar o modo de rede. Se a descoberta de impressoras ou a impressora virtual não funcionarem, recrie o contêiner com rede host.',
+        skip_system_container: 'O Bambuddy está sendo executado em um contêiner de sistema {{runtime}}, que fica na LAN como uma máquina virtual — não aplicável.',
       },
       subnet: {
         title: 'Sub-rede',

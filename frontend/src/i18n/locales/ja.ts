@@ -6990,10 +6990,13 @@ export default {
         warn: 'ポート{{port}}に到達できません。ライブカメラ表示は機能しません。これは印刷には影響しません。',
       },
       network_mode: {
-        title: 'Dockerネットワークモード',
-        pass: 'ホストネットワークモードで実行中です。',
-        warn: 'BambuddyはDockerブリッジネットワークで実行されています。プリンター検出と仮想プリンターにはホストネットワークモードが必要です — "network_mode: host" でコンテナを再作成してください。',
-        skip: 'Dockerで実行されていません — 該当しません。',
+        title: 'コンテナのネットワークモード',
+        genericRuntime: 'コンテナ',
+        pass: '{{runtime}} でホストネットワークを使用して実行中です。',
+        warn: 'Bambuddy は {{runtime}} でブリッジネットワークを使用して実行されています。プリンター検出と仮想プリンターにはホストネットワークが必要です — ホストネットワークでコンテナを再作成してください（docker-compose では "network_mode: host"、Podman では "--network=host"）。',
+        skip: 'コンテナで実行されていません — 該当しません。',
+        skip_unknown: 'Bambuddy は {{runtime}} で実行されていますが、ネットワークモードを判別できませんでした。プリンター検出や仮想プリンターが動作しない場合は、ホストネットワークでコンテナを再作成してください。',
+        skip_system_container: 'Bambuddy は {{runtime}} のシステムコンテナで実行されており、仮想マシンと同様に LAN 上にあります — 該当しません。',
       },
       subnet: {
         title: 'ネットワークサブネット',

@@ -7090,10 +7090,13 @@ export default {
         warn: '포트 {{port}}에 연결할 수 없습니다. 라이브 카메라 보기가 작동하지 않습니다. 인쇄에는 영향을 주지 않습니다.'
       },
       network_mode: {
-        title: 'Docker 네트워크 모드',
-        pass: '호스트 네트워크 모드로 실행 중입니다.',
-        warn: 'Bambuddy가 Docker 브리지 네트워킹으로 실행 중입니다. 프린터 검색과 가상 프린터에는 호스트 네트워크 모드가 필요합니다 — "network_mode: host"로 컨테이너를 재생성하세요.',
-        skip: 'Docker에서 실행 중이 아닙니다 — 해당 없음.'
+        title: '컨테이너 네트워크 모드',
+        genericRuntime: '컨테이너',
+        pass: '{{runtime}}에서 호스트 네트워크로 실행 중입니다.',
+        warn: 'Bambuddy가 {{runtime}}에서 브리지 네트워크로 실행 중입니다. 프린터 검색과 가상 프린터에는 호스트 네트워크가 필요합니다 — 호스트 네트워크로 컨테이너를 재생성하세요(docker-compose에서는 "network_mode: host", Podman에서는 "--network=host").',
+        skip: '컨테이너에서 실행 중이 아닙니다 — 해당 없음.',
+        skip_unknown: 'Bambuddy가 {{runtime}}에서 실행 중이지만 네트워크 모드를 확인할 수 없습니다. 프린터 검색이나 가상 프린터가 작동하지 않으면 호스트 네트워크로 컨테이너를 재생성하세요.',
+        skip_system_container: 'Bambuddy가 {{runtime}} 시스템 컨테이너에서 실행 중이며, 가상 머신처럼 LAN에 연결되어 있습니다 — 해당 없음.'
       },
       subnet: {
         title: '네트워크 서브넷',

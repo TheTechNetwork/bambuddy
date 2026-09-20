@@ -5,6 +5,7 @@ drive the localized fix text the user sees when a printer won't connect,
 so a status flip is a user-facing regression — each one is asserted here.
 """
 
+import ipaddress
 import ssl
 import types
 from contextlib import ExitStack
@@ -12,6 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from backend.app.services.printer_diagnostic import (
     _check_ftps_tls,
+    _host_source_ip,
     _same_subnet,
     run_connection_diagnostic,
 )
@@ -22,6 +24,11 @@ MOD = "backend.app.services.printer_diagnostic"
 def _statuses(result):
     """Map of check id -> status for concise assertions."""
     return {c.id: c.status for c in result.checks}
+
+
+def _check(result, check_id):
+    """The one check with this id — for asserting on its params, not just status."""
+    return next(c for c in result.checks if c.id == check_id)
 
 
 def _port_probe(overrides=None):
@@ -70,9 +77,10 @@ class _Env:
         *,
         ports=None,
         ftps="ok",
-        in_docker=True,
+        runtime="Docker",
         network_mode="host",
         host_ip="192.168.1.5",
+        host_subnet="192.168.1.0/24",
         state=None,
         test_connection_success=True,
         report_messages_since_connect: int | None = 5,
@@ -82,9 +90,13 @@ class _Env:
         self.ports = ports or _port_probe()
         # What the FTPS probe reports: "ok", "closed" or "no_tls" (#2780).
         self.ftps = ftps
-        self.in_docker = in_docker
+        # Container engine detect_container_runtime() reports, None for bare metal.
+        self.runtime = runtime
         self.network_mode = network_mode
         self.host_ip = host_ip
+        # The prefix the host's own interface carries. A string so a test can
+        # say /22 as easily as /24; None means no interface claims host_ip.
+        self.host_subnet = host_subnet
         self.state = state
         self.test_connection_success = test_connection_success
         # ``None`` means get_client returns None (e.g. pre-add flow); an int
@@ -120,9 +132,15 @@ class _Env:
             manager.get_client.return_value = client
         self._stack.enter_context(patch(f"{MOD}._check_port", new_callable=AsyncMock, side_effect=self.ports))
         self._stack.enter_context(patch(f"{MOD}._check_ftps_tls", new_callable=AsyncMock, return_value=self.ftps))
-        self._stack.enter_context(patch(f"{MOD}.is_running_in_docker", return_value=self.in_docker))
-        self._stack.enter_context(patch(f"{MOD}._detect_docker_network_mode", return_value=self.network_mode))
-        self._stack.enter_context(patch(f"{MOD}._get_host_ip", return_value=self.host_ip))
+        self._stack.enter_context(patch(f"{MOD}.detect_container_runtime", return_value=self.runtime))
+        self._stack.enter_context(patch(f"{MOD}._detect_container_network_mode", return_value=self.network_mode))
+        self._stack.enter_context(patch(f"{MOD}._host_source_ip", return_value=self.host_ip))
+        self._stack.enter_context(
+            patch(
+                f"{MOD}.find_local_ipv4_network",
+                return_value=ipaddress.ip_network(self.host_subnet) if self.host_subnet else None,
+            )
+        )
         self._stack.enter_context(patch(f"{MOD}.printer_manager", manager))
         self._stack.enter_context(patch(f"{MOD}.find_remote_file_async", new=self.find_remote_file))
         return self
@@ -138,18 +156,82 @@ def _printer(ip="192.168.1.50", model=None, access_code="12345678"):
     return types.SimpleNamespace(id=1, ip_address=ip, model=model, access_code=access_code)
 
 
+def _with_host_network(subnet: str | None):
+    """Patch the host's own interface prefix, the way the kernel reports it."""
+    return patch(
+        f"{MOD}.find_local_ipv4_network",
+        return_value=ipaddress.ip_network(subnet) if subnet else None,
+    )
+
+
 class TestSameSubnet:
     def test_same_24(self):
-        assert _same_subnet("192.168.1.10", "192.168.1.200") is True
+        with _with_host_network("192.168.1.0/24"):
+            assert _same_subnet("192.168.1.10", "192.168.1.200") is True
 
     def test_different_24(self):
-        assert _same_subnet("192.168.1.10", "192.168.2.10") is False
+        with _with_host_network("192.168.2.0/24"):
+            assert _same_subnet("192.168.1.10", "192.168.2.10") is False
+
+    def test_a_22_reaches_across_the_third_octet(self):
+        """#3092: 192.168.96.9/22 and 192.168.98.170 are one LAN.
+
+        The old code built both sides as /24 and told the reporter his printer
+        was on a different network, four hundred addresses inside his own.
+        """
+        with _with_host_network("192.168.96.0/22"):
+            assert _same_subnet("192.168.98.170", "192.168.96.9") is True
+
+    def test_a_25_does_not_reach_the_whole_24(self):
+        """The assumption cut both ways: a /25 is narrower than the guess."""
+        with _with_host_network("192.168.1.0/25"):
+            assert _same_subnet("192.168.1.200", "192.168.1.10") is False
+
+    def test_no_interface_claims_the_host_address(self):
+        """Undeterminable stays undeterminable — it must not become a warning."""
+        with _with_host_network(None):
+            assert _same_subnet("192.168.1.10", "192.168.1.200") is None
 
     def test_hostname_undeterminable(self):
         assert _same_subnet("printer.local", "192.168.1.10") is None
 
     def test_ipv6_undeterminable(self):
         assert _same_subnet("fe80::1", "192.168.1.10") is None
+
+
+class TestHostSourceIp:
+    """#3092: which of Bambuddy's own addresses the comparison is made against."""
+
+    def test_the_route_is_probed_toward_the_printer(self):
+        """Not toward a fixed far-away address.
+
+        On a multi-homed host the source for a route to the internet is a
+        different interface from the one the printer is on, and the old fixed
+        10.255.255.255 probe compared the printer against that one.
+        """
+        sock = MagicMock()
+        sock.getsockname.return_value = ("192.168.96.9", 51234)
+        with patch(f"{MOD}.socket.socket", return_value=sock):
+            assert _host_source_ip("192.168.98.170") == "192.168.96.9"
+        sock.connect.assert_called_once_with(("192.168.98.170", 1))
+        sock.close.assert_called_once()
+
+    def test_a_hostname_is_never_resolved(self):
+        """connect() on a name blocks the event loop; _same_subnet needs a literal anyway."""
+        with patch(f"{MOD}.socket.socket") as factory:
+            assert _host_source_ip("printer.local") is None
+        factory.assert_not_called()
+
+    def test_ipv6_destination_is_refused(self):
+        with patch(f"{MOD}.socket.socket") as factory:
+            assert _host_source_ip("fe80::1") is None
+        factory.assert_not_called()
+
+    def test_an_unreachable_route_is_not_an_error(self):
+        sock = MagicMock()
+        sock.connect.side_effect = OSError("Network is unreachable")
+        with patch(f"{MOD}.socket.socket", return_value=sock):
+            assert _host_source_ip("192.168.98.170") is None
 
 
 class TestExistingPrinter:
@@ -258,15 +340,57 @@ class TestExistingPrinter:
         # Container IP isn't the host IP in bridge mode -> subnet check is meaningless.
         assert s["subnet"] == "skip"
 
-    async def test_network_mode_skipped_outside_docker(self):
-        with _Env(in_docker=False, state=_state()):
+    async def test_network_mode_skipped_outside_a_container(self):
+        with _Env(runtime=None, state=_state()):
             result = await run_connection_diagnostic("192.168.1.50", printer=_printer())
         assert _statuses(result)["network_mode"] == "skip"
 
+    async def test_podman_host_networking_passes(self):
+        """#3092: the same two shapes as Docker, and they must read the same."""
+        with _Env(runtime="Podman", network_mode="host", state=_state()):
+            result = await run_connection_diagnostic("192.168.1.50", printer=_printer())
+        check = _check(result, "network_mode")
+        assert check.status == "pass"
+        assert check.params["runtime"] == "Podman"
+
+    async def test_podman_bridge_networking_warns(self):
+        with _Env(runtime="Podman", network_mode="bridge", state=_state()):
+            result = await run_connection_diagnostic("192.168.1.50", printer=_printer())
+        assert _statuses(result)["network_mode"] == "warn"
+
+    async def test_undetectable_mode_skips_rather_than_guessing(self):
+        """A container we cannot read must not be told to recreate itself."""
+        with _Env(runtime="Podman", network_mode=None, state=_state()):
+            result = await run_connection_diagnostic("192.168.1.50", printer=_printer())
+        check = _check(result, "network_mode")
+        assert check.status == "skip"
+        assert check.params == {"reason": "unknown", "runtime": "Podman"}
+
+    async def test_system_container_has_no_network_mode_to_recommend(self):
+        """LXC/LXD is bridged onto the LAN like a small VM — nothing to fix."""
+        with _Env(runtime="LXC", state=_state()):
+            result = await run_connection_diagnostic("192.168.1.50", printer=_printer())
+        check = _check(result, "network_mode")
+        assert check.status == "skip"
+        assert check.params == {"reason": "system_container", "runtime": "LXC"}
+        # And the subnet check still runs: an LXC container is on the LAN.
+        assert _statuses(result)["subnet"] == "pass"
+
     async def test_different_subnet_warns(self):
-        with _Env(host_ip="10.0.0.5", state=_state()):
+        with _Env(host_ip="10.0.0.5", host_subnet="10.0.0.0/24", state=_state()):
             result = await run_connection_diagnostic("192.168.1.50", printer=_printer())
         assert _statuses(result)["subnet"] == "warn"
+
+    async def test_a_wider_lan_is_not_a_different_subnet(self):
+        """#3092 end to end, with the reporter's own addresses."""
+        with _Env(host_ip="192.168.96.9", host_subnet="192.168.96.0/22", state=_state()):
+            result = await run_connection_diagnostic("192.168.98.170", printer=_printer(ip="192.168.98.170"))
+        assert _statuses(result)["subnet"] == "pass"
+
+    async def test_unknown_host_prefix_skips_rather_than_warning(self):
+        with _Env(host_ip="192.168.96.9", host_subnet=None, state=_state()):
+            result = await run_connection_diagnostic("192.168.98.170", printer=_printer(ip="192.168.98.170"))
+        assert _statuses(result)["subnet"] == "skip"
 
     async def test_printer_publishing_passes_when_reports_seen(self):
         # Counter > 0 means the printer is publishing on the report topic.

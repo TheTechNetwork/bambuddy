@@ -7040,10 +7040,13 @@ export default {
         warn: 'Poort {{port}} is niet bereikbaar. De livecamera werkt niet. Dit heeft geen invloed op afdrukken.',
       },
       network_mode: {
-        title: 'Docker-netwerkmodus',
-        pass: 'Draait in host-netwerkmodus.',
-        warn: 'Bambuddy draait met Docker bridge-netwerken. Printerdetectie en de Virtuele printer vereisen host-netwerkmodus — maak de container opnieuw aan met "network_mode: host".',
-        skip: 'Niet actief in Docker — niet van toepassing.',
+        title: 'Netwerkmodus van de container',
+        genericRuntime: 'een container',
+        pass: 'Draait in {{runtime}} met host-netwerk.',
+        warn: 'Bambuddy draait in {{runtime}} met bridge-netwerken. Printerdetectie en de Virtuele printer vereisen host-netwerk — maak de container opnieuw aan met host-netwerk ("network_mode: host" in docker-compose, "--network=host" bij Podman).',
+        skip: 'Draait niet in een container — niet van toepassing.',
+        skip_unknown: 'Bambuddy draait in {{runtime}}, maar de netwerkmodus kon niet worden bepaald. Als printerdetectie of de Virtuele printer niet werken, maak de container dan opnieuw aan met host-netwerk.',
+        skip_system_container: 'Bambuddy draait in een {{runtime}}-systeemcontainer, die net als een virtuele machine op het LAN zit — niet van toepassing.',
       },
       subnet: {
         title: 'Netwerksubnet',

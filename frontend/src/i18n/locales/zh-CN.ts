@@ -6976,10 +6976,13 @@ export default {
         warn: '端口 {{port}} 不可达。实时摄像头视图将无法工作。这不影响打印。',
       },
       network_mode: {
-        title: 'Docker 网络模式',
-        pass: '正在以 host 网络模式运行。',
-        warn: 'Bambuddy 正在以 Docker bridge 网络运行。打印机发现和虚拟打印机需要 host 网络模式 — 请使用 "network_mode: host" 重新创建容器。',
-        skip: '未在 Docker 中运行 — 不适用。',
+        title: '容器网络模式',
+        genericRuntime: '容器',
+        pass: '正在 {{runtime}} 中以 host 网络运行。',
+        warn: 'Bambuddy 正在 {{runtime}} 中以 bridge 网络运行。打印机发现和虚拟打印机需要 host 网络 — 请使用 host 网络重新创建容器（docker-compose 中为 "network_mode: host"，Podman 中为 "--network=host"）。',
+        skip: '未在容器中运行 — 不适用。',
+        skip_unknown: 'Bambuddy 正在 {{runtime}} 中运行，但无法确定其网络模式。如果打印机发现或虚拟打印机无法使用，请使用 host 网络重新创建容器。',
+        skip_system_container: 'Bambuddy 正在 {{runtime}} 系统容器中运行，它像虚拟机一样直接位于局域网中 — 不适用。',
       },
       subnet: {
         title: '网络子网',

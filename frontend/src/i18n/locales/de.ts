@@ -6989,10 +6989,13 @@ export default {
         warn: 'Port {{port}} ist nicht erreichbar. Die Live-Kameraansicht funktioniert nicht. Dies betrifft das Drucken nicht.',
       },
       network_mode: {
-        title: 'Docker-Netzwerkmodus',
-        pass: 'Läuft im Host-Netzwerkmodus.',
-        warn: 'Bambuddy läuft im Docker-Bridge-Netzwerkmodus. Die Druckererkennung und der virtuelle Drucker benötigen den Host-Netzwerkmodus — erstellen Sie den Container mit "network_mode: host" neu.',
-        skip: 'Läuft nicht in Docker — nicht zutreffend.',
+        title: 'Container-Netzwerkmodus',
+        genericRuntime: 'einem Container',
+        pass: 'Läuft in {{runtime}} mit Host-Netzwerk.',
+        warn: 'Bambuddy läuft in {{runtime}} mit Bridge-Netzwerk. Die Druckererkennung und der virtuelle Drucker benötigen den Host-Netzwerkmodus — erstellen Sie den Container mit Host-Netzwerk neu ("network_mode: host" in docker-compose, "--network=host" bei Podman).',
+        skip: 'Läuft nicht in einem Container — nicht zutreffend.',
+        skip_unknown: 'Bambuddy läuft in {{runtime}}, der Netzwerkmodus konnte jedoch nicht ermittelt werden. Falls die Druckererkennung oder der virtuelle Drucker nicht funktionieren, erstellen Sie den Container mit Host-Netzwerk neu.',
+        skip_system_container: 'Bambuddy läuft in einem {{runtime}}-Systemcontainer, der wie eine virtuelle Maschine direkt im LAN liegt — nicht zutreffend.',
       },
       subnet: {
         title: 'Netzwerk-Subnetz',
