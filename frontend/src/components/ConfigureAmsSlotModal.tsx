@@ -115,20 +115,38 @@ function kProfileOptionValue(profile: KProfile): string {
 }
 
 /**
+ * Does the printer file its calibration table per hotend?
+ *
+ * It is not a property of the machine but of the table it sent. When the
+ * slot's own hotend appears in it, an index means "entry N of *that* hotend's
+ * table" and the tagging is load-bearing. When the hotend appears nowhere, the
+ * tagging says nothing about this slot and scoping by it only hides profiles
+ * the slot really does use.
+ */
+function tableNamesThisHotend(profiles: KProfile[], extruderId: number | undefined): boolean {
+  if (extruderId === undefined) return false;
+  return profiles.some(p => (p.extruder_id ?? 0) === extruderId);
+}
+
+/**
  * The profile a slot's `cali_idx` points at.
  *
- * An index is only meaningful together with a nozzle: the printer numbers its
- * calibration table per hotend, so entry 16 exists on both and means a
- * different profile on each. On the maintainer's H2C, index 16 is the left
- * hotend's black PLA at K=0.018 and index 15 is the right's at K=0.020.
- * Matching on the index alone returns whichever the printer listed first.
+ * Scoped to the slot's own hotend where the table names it: on the
+ * maintainer's H2C, index 16 is the left hotend's black PLA at K=0.018 and
+ * index 15 is the right's at K=0.020, so a right-hand slot bound to 16 must
+ * come up empty rather than follow the index into the left's table.
+ *
+ * Where the table does not name the hotend, the printer is filing one profile
+ * per filament instead — an X2D's second AMS points at the same entries as its
+ * first — and demanding a match found nothing at all, leaving every slot on
+ * that AMS unconfigured with no error (#3044). There the index stands alone.
  */
 function findProfileByCaliIdx(
   profiles: KProfile[],
   caliIdx: number,
   extruderId: number | undefined
 ): KProfile | undefined {
-  if (extruderId !== undefined) {
+  if (tableNamesThisHotend(profiles, extruderId)) {
     return profiles.find(p => p.slot_id === caliIdx && (p.extruder_id ?? 0) === extruderId);
   }
   return profiles.find(p => p.slot_id === caliIdx);
@@ -992,13 +1010,18 @@ export function ConfigureAmsSlotModal({
       return false;
     });
 
-    // Scope to the slot's own nozzle when it is known: a K-profile calibrated on
-    // the other hotend is not a match for this slot, and offering it as one is
-    // how the wrong K got bound. Those profiles are still reachable below under
-    // "Other", where the option label names the hotend.
-    const onThisNozzle = slotInfo.extruderId === undefined
-      ? filtered
-      : filtered.filter(p => (p.extruder_id ?? 0) === slotInfo.extruderId);
+    // Scope to the slot's own nozzle where the table names it: a K-profile
+    // calibrated on the other hotend is not a match for this slot, and offering
+    // it as one is how the wrong K got bound. Those profiles are still
+    // reachable below under "Other", where the option label names the hotend.
+    //
+    // Where the table names no profile on this hotend at all, scoping emptied
+    // the list instead — the X2D case in #3044, where the second AMS's slots
+    // point at the first's entries — so the tagging is ignored rather than
+    // enforced.
+    const onThisNozzle = tableNamesThisHotend(kprofilesData.profiles, slotInfo.extruderId)
+      ? filtered.filter(p => (p.extruder_id ?? 0) === slotInfo.extruderId)
+      : filtered;
 
     // Deduplicate genuine duplicates — same nozzle, same name, same K.
     const seen = new Map<string, KProfile>();
@@ -1374,14 +1397,14 @@ export function ConfigureAmsSlotModal({
                         <option value="">{t('configureAmsSlot.noKProfile')}</option>
                         {matchingKProfiles.map((profile) => (
                           <option key={kProfileOptionValue(profile)} value={kProfileOptionValue(profile)}>
-                            {profile.name} (K={profile.k_value}){kProfileNozzleSuffix(profile, isDualNozzleProfiles, t)}{kProfileNozzleSuffix(profile, isDualNozzleProfiles, t)}
+                            {profile.name} (K={profile.k_value}){kProfileNozzleSuffix(profile, isDualNozzleProfiles, t)}
                           </option>
                         ))}
                         {otherKProfiles.length > 0 && (
                           <optgroup label={t('configureAmsSlot.otherKProfiles')}>
                             {otherKProfiles.map((profile) => (
                               <option key={kProfileOptionValue(profile)} value={kProfileOptionValue(profile)}>
-                                {profile.name} (K={profile.k_value}){kProfileNozzleSuffix(profile, isDualNozzleProfiles, t)}{kProfileNozzleSuffix(profile, isDualNozzleProfiles, t)}{kProfileNozzleSuffix(profile, isDualNozzleProfiles, t)}
+                                {profile.name} (K={profile.k_value}){kProfileNozzleSuffix(profile, isDualNozzleProfiles, t)}
                               </option>
                             ))}
                           </optgroup>
@@ -1626,7 +1649,7 @@ export function ConfigureAmsSlotModal({
                         <optgroup label={t('configureAmsSlot.otherKProfiles')}>
                           {otherKProfiles.map((profile) => (
                             <option key={kProfileOptionValue(profile)} value={kProfileOptionValue(profile)}>
-                              {profile.name} (K={profile.k_value}){kProfileNozzleSuffix(profile, isDualNozzleProfiles, t)}{kProfileNozzleSuffix(profile, isDualNozzleProfiles, t)}{kProfileNozzleSuffix(profile, isDualNozzleProfiles, t)}
+                              {profile.name} (K={profile.k_value}){kProfileNozzleSuffix(profile, isDualNozzleProfiles, t)}
                             </option>
                           ))}
                         </optgroup>

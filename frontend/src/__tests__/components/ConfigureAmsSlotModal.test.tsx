@@ -869,6 +869,126 @@ describe('ConfigureAmsSlotModal', () => {
     });
   });
 
+  describe('A slot whose extruder claims no profile (#3044)', () => {
+    // Reporter's X2D: two AMS 2 Pro, one per hotend, the same filaments in
+    // both. The printer files one profile per filament rather than one per
+    // hotend, so the second AMS's slots point at entries tagged extruder 0.
+    // Scoping the picker to the slot's own extruder left it with nothing:
+    // the slot read as unconfigured and choosing a profile changed nothing
+    // the user could see.
+    const sharedProfiles = [
+      { name: 'PLA', k_value: '0.021', slot_id: 1 },
+      { name: 'PETG', k_value: '0.026', slot_id: 4 },
+    ].map(p => ({
+      ...p,
+      extruder_id: 0,
+      nozzle_id: 'HH00-0.4',
+      nozzle_diameter: '0.4',
+      filament_id: 'GFL99',
+      n_coef: '0',
+      ams_id: 0,
+      tray_id: 0,
+      setting_id: '',
+    }));
+
+    // AMS-B, right-hand hotend, already bound to the PLA profile the A-side
+    // slots use.
+    const rightHandSlot = {
+      ...defaultProps.slotInfo,
+      amsId: 1,
+      savedPresetId: 'builtin_GFL99',
+      extruderId: 1,
+      caliIdx: 1,
+    };
+
+    beforeEach(() => {
+      (api.getBuiltinFilaments as ReturnType<typeof vi.fn>).mockResolvedValue([
+        { filament_id: 'GFL99', name: 'Generic PLA', filament_type: 'PLA' },
+      ]);
+      (api.getKProfiles as ReturnType<typeof vi.fn>).mockResolvedValue({ profiles: sharedProfiles });
+    });
+
+    it('offers the profiles as matches rather than an empty picker', async () => {
+      render(<ConfigureAmsSlotModal {...defaultProps} slotInfo={rightHandSlot} />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('option', { name: /PLA \(K=0.021\)/ })).toBeInTheDocument();
+      });
+      // Matches are the select's direct children; anything demoted to the
+      // "Other K profiles" group sits inside an optgroup instead. Being merely
+      // present is what the slot already had, and it read as unconfigured.
+      const matches = Array.from(screen.getByRole('combobox').querySelectorAll(':scope > option'))
+        .map(o => (o as HTMLOptionElement).value)
+        .filter(Boolean);
+      expect(matches).toEqual(['0|PLA|0.021', '0|PETG|0.026']);
+    });
+
+    it('shows the slot as already bound to its active profile', async () => {
+      render(<ConfigureAmsSlotModal {...defaultProps} slotInfo={rightHandSlot} />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('option', { name: /PLA \(K=0.021\)/ })).toBeInTheDocument();
+      });
+      // Not the "no K profile" placeholder, which is what the slot showed while
+      // the active profile could not be found on this extruder.
+      expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe('0|PLA|0.021');
+    });
+
+    it('still scopes to the slot own hotend when that hotend has its own profiles', async () => {
+      // The H2C case behind the scoping: one filament calibrated on both
+      // hotends, two profiles, one right answer per slot. The fallback is a
+      // last resort and must not reopen this.
+      (api.getKProfiles as ReturnType<typeof vi.fn>).mockResolvedValue({
+        profiles: [
+          { ...sharedProfiles[0], extruder_id: 0, k_value: '0.020', slot_id: 1 },
+          { ...sharedProfiles[0], extruder_id: 1, k_value: '0.018', slot_id: 2 },
+        ],
+      });
+      render(
+        <ConfigureAmsSlotModal
+          {...defaultProps}
+          slotInfo={{ ...rightHandSlot, caliIdx: 2 }}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByRole('option', { name: /K=0.018/ })).toBeInTheDocument();
+      });
+      expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe('1|PLA|0.018');
+      // The left hotend's copy is still reachable, but under "Other".
+      const other = screen.getByRole('option', { name: /K=0.020/ });
+      expect(other.parentElement?.tagName).toBe('OPTGROUP');
+    });
+
+    it('names each hotend once, not two or three times', async () => {
+      // The label rendered kProfileNozzleSuffix twice in the matching group and
+      // three times under "Other", so every option on a dual-nozzle printer
+      // read "... . Left . Left".
+      (api.getKProfiles as ReturnType<typeof vi.fn>).mockResolvedValue({
+        profiles: [
+          { ...sharedProfiles[0], extruder_id: 0, k_value: '0.020', slot_id: 1 },
+          { ...sharedProfiles[0], extruder_id: 1, k_value: '0.018', slot_id: 2 },
+        ],
+      });
+      render(
+        <ConfigureAmsSlotModal
+          {...defaultProps}
+          slotInfo={{ ...rightHandSlot, caliIdx: 2 }}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByRole('option', { name: /K=0.018/ })).toBeInTheDocument();
+      });
+      for (const option of screen.getAllByRole('option')) {
+        // The suffix is the only thing that puts a middot in an option label,
+        // so counting separators counts how many times the hotend was named.
+        const separators = (option.textContent ?? '').match(/\u00b7/g) ?? [];
+        expect(separators.length).toBeLessThanOrEqual(1);
+      }
+    });
+  });
+
   it('does not include the active K-profile when caliIdx is 0 or null (#1689 guard)', async () => {
     // cali_idx == 0 / null means no profile is active (printer default 0.020).
     // The safety net only triggers for activeIdx > 0 — otherwise unrelated

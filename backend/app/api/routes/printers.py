@@ -528,13 +528,14 @@ async def get_printer_status(
     ams_exists = False
     raw_data = state.raw_data or {}
 
-    # K value for a slot's bound profile, resolved against its own nozzle.
+    # K value for a slot's bound profile, preferring the slot's own nozzle.
     #
-    # Keyed on more than cali_idx: the printer numbers its calibration table
-    # per nozzle, so entry 16 exists on each and means a different profile on
-    # each. A cali_idx-only map let whichever profile the printer happened to
-    # list last overwrite the other, and the slot then displayed the wrong
-    # nozzle's K — on the maintainer's H2C, 0.018 and 0.020 for the same spool.
+    # cali_idx alone is not enough: two profiles can share an index and differ
+    # by extruder, and a cali_idx-only map let whichever the printer listed
+    # last overwrite the other — on the maintainer's H2C, 0.018 and 0.020 for
+    # the same spool. Nor is the extruder a requirement: one profile can be
+    # what both extruders' slots point at, and demanding a match blanked every
+    # slot on a second AMS (#3044). The resolver does both in order.
     _kprofile_k = build_slot_k_resolver(state)
 
     # Cached active-cycle drying params (filament + target temp) we sent
