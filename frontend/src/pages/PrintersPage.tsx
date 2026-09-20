@@ -5658,6 +5658,7 @@ function PrinterCard({
                                                 subtype: spoolmanSpool.subtype,
                                                 brand: spoolmanSpool.brand ?? null,
                                                 color_name: spoolmanSpool.color_name ?? null,
+                                                color_name_is_synthesized: spoolmanSpool.color_name_is_synthesized,
                                                 // The spool's own swatch (#2967). Spoolman carries the
                                                 // extra stops but has no effect field at all, so those
                                                 // rolls gradient and never shimmer.
@@ -6064,6 +6065,7 @@ function PrinterCard({
                                             subtype: spoolmanSpool.subtype,
                                             brand: spoolmanSpool.brand ?? null,
                                             color_name: spoolmanSpool.color_name ?? null,
+                                            color_name_is_synthesized: spoolmanSpool.color_name_is_synthesized,
                                             // The spool's own swatch (#2967). Spoolman carries the
                                             // extra stops but has no effect field at all, so those
                                             // rolls gradient and never shimmer.
@@ -6355,6 +6357,7 @@ function PrinterCard({
                                               subtype: spoolmanSpool.subtype,
                                               brand: spoolmanSpool.brand ?? null,
                                               color_name: spoolmanSpool.color_name ?? null,
+                                              color_name_is_synthesized: spoolmanSpool.color_name_is_synthesized,
                                               // The spool's own swatch (#2967). Spoolman carries the
                                               // extra stops but has no effect field at all, so those
                                               // rolls gradient and never shimmer.

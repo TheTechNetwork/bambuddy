@@ -6789,6 +6789,7 @@ export default {
       scaleWeight: '秤重',
       netWeight: '净重',
       lastUsed: '上次使用',
+      unknownColor: '未知颜色',
     },
     ams: {
       noData: '未检测到 AMS',

@@ -6803,6 +6803,7 @@ export default {
       scaleWeight: '計量',
       netWeight: '正味',
       lastUsed: '最終使用',
+      unknownColor: '不明な色',
     },
     ams: {
       noData: 'AMSが検出されません',

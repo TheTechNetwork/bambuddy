@@ -6791,6 +6791,7 @@ export default {
       scaleWeight: 'Bilancia',
       netWeight: 'Netto',
       lastUsed: 'Ultimo utilizzo',
+      unknownColor: 'Colore sconosciuto',
     },
     ams: {
       noData: 'Nessun AMS rilevato',

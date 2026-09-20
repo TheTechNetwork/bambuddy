@@ -6792,6 +6792,7 @@ export default {
       scaleWeight: 'Balance',
       netWeight: 'Réseau',
       lastUsed: 'Dernière utilisation',
+      unknownColor: 'Couleur inconnue',
     },
     ams: {
       noData: 'Aucun AMS détecté',

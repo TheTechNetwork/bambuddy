@@ -6448,7 +6448,8 @@ export default {
       labelWeight: '라벨',
       scaleWeight: '저울',
       netWeight: '순 무게',
-      lastUsed: '마지막 사용'
+      lastUsed: '마지막 사용',
+      unknownColor: '알 수 없는 색상'
     },
     ams: {
       noData: 'AMS가 감지되지 않음',

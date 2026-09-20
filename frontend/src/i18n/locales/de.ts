@@ -6802,6 +6802,7 @@ export default {
       scaleWeight: 'Waage',
       netWeight: 'Netto',
       lastUsed: 'Zuletzt verwendet',
+      unknownColor: 'Unbekannte Farbe',
     },
     ams: {
       noData: 'Kein AMS erkannt',

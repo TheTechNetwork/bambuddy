@@ -6853,6 +6853,7 @@ export default {
       scaleWeight: 'Weegschaal',
       netWeight: 'Netto',
       lastUsed: 'Laatst gebruikt',
+      unknownColor: 'Onbekende kleur',
     },
     ams: {
       noData: 'Geen AMS gedetecteerd',

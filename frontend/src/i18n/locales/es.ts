@@ -6810,6 +6810,7 @@ export default {
       scaleWeight: 'Báscula',
       netWeight: 'Neto',
       lastUsed: 'Usada por última vez',
+      unknownColor: 'Color desconocido',
     },
     ams: {
       noData: 'No se detectó ningún AMS',
