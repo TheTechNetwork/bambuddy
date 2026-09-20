@@ -534,6 +534,8 @@ export default {
       step: 'Pas (mm)',
       up: 'Monter le plateau',
       down: 'Descendre le plateau',
+      toolheadUp: 'Monter la tête',
+      toolheadDown: 'Descendre la tête',
       disabledWhilePrinting: 'Désactivé pendant l\'impression',
       notHomedTitle: 'Imprimante non référencée',
       notHomedMessage: 'L\'imprimante n\'a pas été référencée depuis la dernière impression. Lancez la référence automatique d\'abord pour un positionnement sûr (parque la tête d\'outil, puis référence X, Y et Z), ou déplacez quand même — les butées logicielles seront ignorées.',

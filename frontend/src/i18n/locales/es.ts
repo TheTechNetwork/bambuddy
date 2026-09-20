@@ -534,6 +534,8 @@ export default {
       step: 'Paso (mm)',
       up: 'Subir la cama',
       down: 'Bajar la cama',
+      toolheadUp: 'Subir el cabezal',
+      toolheadDown: 'Bajar el cabezal',
       disabledWhilePrinting: 'Desactivado durante la impresión',
       notHomedTitle: 'La impresora no está en posición de origen',
       notHomedMessage: 'La impresora no se ha llevado a su posición de origen desde la última impresión. Ejecute el autoorigen primero para un posicionamiento seguro (estaciona el cabezal y luego lleva X, Y y Z al origen), o mueva de todos modos — los finales de carrera por software se omitirán.',

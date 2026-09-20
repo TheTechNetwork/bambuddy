@@ -534,6 +534,8 @@ export default {
       step: 'Passo (mm)',
       up: 'Sposta piano su',
       down: 'Sposta piano giù',
+      toolheadUp: 'Sposta testina su',
+      toolheadDown: 'Sposta testina giù',
       disabledWhilePrinting: 'Disabilitato durante la stampa',
       notHomedTitle: 'Stampante non azzerata',
       notHomedMessage: 'La stampante non è stata azzerata dall\'ultima stampa. Esegui prima l\'azzeramento automatico per un posizionamento sicuro (parcheggia la testa di stampa, poi azzera X, Y e Z), oppure muovi comunque — i finecorsa software verranno ignorati.',

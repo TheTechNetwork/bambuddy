@@ -534,6 +534,8 @@ export default {
       step: '步长 (mm)',
       up: '热床上移',
       down: '热床下移',
+      toolheadUp: '喷头上移',
+      toolheadDown: '喷头下移',
       disabledWhilePrinting: '打印中已禁用',
       notHomedTitle: '打印机未归零',
       notHomedMessage: '打印机自上次打印以来尚未归零。请先执行自动归零以确保安全定位（先停放喷头，然后归零 X、Y 和 Z），或者直接移动 — 软限位将被绕过。',

@@ -534,6 +534,8 @@ export default {
       step: 'Schritt (mm)',
       up: 'Platte hoch',
       down: 'Platte runter',
+      toolheadUp: 'Druckkopf hoch',
+      toolheadDown: 'Druckkopf runter',
       disabledWhilePrinting: 'Während des Drucks deaktiviert',
       notHomedTitle: 'Drucker ist nicht referenziert',
       notHomedMessage: 'Der Drucker wurde seit dem letzten Druck nicht referenziert. Führen Sie zuerst die automatische Referenzfahrt aus (parkt den Werkzeugkopf und referenziert dann X, Y und Z) oder bewegen Sie trotzdem — die Software-Endschalter werden dabei umgangen.',

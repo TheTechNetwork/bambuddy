@@ -503,6 +503,8 @@ export default {
       step: '이동 거리 (mm)',
       up: '플레이트 위로',
       down: '플레이트 아래로',
+      toolheadUp: '툴헤드 위로',
+      toolheadDown: '툴헤드 아래로',
       disabledWhilePrinting: '인쇄 중 비활성화됨',
       notHomedTitle: '프린터 홈 설정 필요',
       notHomedMessage: '마지막 인쇄 이후 홈 설정이 되지 않았습니다. 안전한 위치 지정을 위해 자동 홈 설정을 먼저 실행하거나, 그냥 이동하세요 — 소프트 엔드스톱이 무시됩니다.',

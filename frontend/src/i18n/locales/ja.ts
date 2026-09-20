@@ -533,6 +533,8 @@ export default {
       step: 'ステップ (mm)',
       up: 'プレートを上へ',
       down: 'プレートを下へ',
+      toolheadUp: 'ツールヘッドを上へ',
+      toolheadDown: 'ツールヘッドを下へ',
       disabledWhilePrinting: '印刷中は無効',
       notHomedTitle: 'プリンターがホーミングされていません',
       notHomedMessage: '前回の印刷以降、プリンターがホーミングされていません。安全な位置決めのためにまずオートホーミングを実行するか（ツールヘッドをパークしてからX・Y・Zをホーミングします）、このまま移動してください — ソフトエンドストップはバイパスされます。',

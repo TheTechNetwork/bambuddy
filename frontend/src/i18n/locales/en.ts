@@ -537,6 +537,8 @@ export default {
       step: 'Step (mm)',
       up: 'Move plate up',
       down: 'Move plate down',
+      toolheadUp: 'Move toolhead up',
+      toolheadDown: 'Move toolhead down',
       disabledWhilePrinting: 'Disabled while printing',
       notHomedTitle: 'Printer is not homed',
       notHomedMessage: 'The printer has not been homed since the last print. Run auto-home first for safe positioning (parks the toolhead, then homes X, Y, and Z), or move anyway — soft endstops will be bypassed.',

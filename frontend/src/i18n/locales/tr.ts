@@ -534,6 +534,8 @@ export default {
       step: 'Adım (mm)',
       up: 'Plakayı yukarı hareket ettir',
       down: 'Plakayı aşağı hareket ettir',
+      toolheadUp: 'Baskı kafasını yukarı hareket ettir',
+      toolheadDown: 'Baskı kafasını aşağı hareket ettir',
       disabledWhilePrinting: 'Baskı sırasında devre dışı',
       notHomedTitle: 'Yazıcı sıfırlanmamış',
       notHomedMessage: 'Yazıcı son baskıdan bu yana sıfırlanmadı. Güvenli konumlandırma için önce otomatik sıfırlamayı çalıştırın (kafayı park eder, ardından X, Y ve Z sıfırlanır) veya yine de hareket ettirin — yazılım son durakları atlanır.',

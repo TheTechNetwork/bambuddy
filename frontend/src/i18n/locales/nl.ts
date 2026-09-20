@@ -537,6 +537,8 @@ export default {
       step: 'Stap (mm)',
       up: 'Plaat omhoog bewegen',
       down: 'Plaat omlaag bewegen',
+      toolheadUp: 'Printkop omhoog bewegen',
+      toolheadDown: 'Printkop omlaag bewegen',
       disabledWhilePrinting: 'Uitgeschakeld tijdens afdrukken',
       notHomedTitle: 'Printer is niet gehomed',
       notHomedMessage: 'De printer is sinds de laatste afdruk niet gehomed. Voer eerst auto-home uit voor een veilige positionering (parkeert de toolhead en homet daarna X, Y en Z), of verplaats toch — soft endstops worden omzeild.',

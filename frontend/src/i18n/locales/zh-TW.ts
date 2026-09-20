@@ -534,6 +534,8 @@ export default {
       step: '步長 (mm)',
       up: '熱床上移',
       down: '熱床下移',
+      toolheadUp: '噴頭上移',
+      toolheadDown: '噴頭下移',
       disabledWhilePrinting: '列印中已停用',
       notHomedTitle: '印表機未歸零',
       notHomedMessage: '印表機自上次列印以來尚未歸零。請先執行自動歸零以確保安全定位（先停放噴頭，然後歸零 X、Y 和 Z），或者直接移動 — 軟限位將被繞過。',

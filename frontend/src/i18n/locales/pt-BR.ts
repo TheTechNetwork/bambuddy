@@ -534,6 +534,8 @@ export default {
       step: 'Passo (mm)',
       up: 'Mover mesa para cima',
       down: 'Mover mesa para baixo',
+      toolheadUp: 'Mover cabeçote para cima',
+      toolheadDown: 'Mover cabeçote para baixo',
       disabledWhilePrinting: 'Desativado durante a impressão',
       notHomedTitle: 'Impressora não referenciada',
       notHomedMessage: 'A impressora não foi referenciada desde a última impressão. Execute a referência automática primeiro para um posicionamento seguro (estaciona o cabeçote, depois referencia X, Y e Z), ou mova assim mesmo — os fins de curso de software serão ignorados.',
