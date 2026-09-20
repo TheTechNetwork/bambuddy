@@ -45,6 +45,7 @@ from backend.app.schemas.spool import (
     normalize_extra_colors,
 )
 from backend.app.schemas.spool_usage import SpoolUsageHistoryResponse
+from backend.app.services.ams_slot_presence import spool_present
 from backend.app.services.location_service import (
     DUPLICATE_LOCATION_NAME,
     assign_location_name,
@@ -1850,6 +1851,9 @@ async def assign_spool(
     fingerprint_type = None
     current_tray_info_idx = ""
     tray_state: int | None = None
+    # Firmware's tray_exist_bits answer for this slot, when the payload carries
+    # one. Outranks tray_state below — see services/ams_slot_presence.py.
+    tray_has_spool: bool | None = None
     state = printer_manager.get_status(data.printer_id)
     if state and state.raw_data:
         if data.ams_id == 255:
@@ -1864,6 +1868,7 @@ async def assign_spool(
                     raw_state = vt.get("state")
                     if isinstance(raw_state, int):
                         tray_state = raw_state
+                    tray_has_spool = spool_present(vt)
                     break
         else:
             ams_data = state.raw_data.get("ams", {})
@@ -1886,6 +1891,7 @@ async def assign_spool(
                 raw_state = tray.get("state")
                 if isinstance(raw_state, int):
                     tray_state = raw_state
+                tray_has_spool = spool_present(tray)
 
     # 3. Upsert assignment (replace if same printer+ams+tray)
     existing = await db.execute(
@@ -1945,7 +1951,30 @@ async def assign_spool(
     # a doomed MQTT push when the firmware has positively confirmed "no
     # spool" — and to keep the on_ams_change replay path as the single
     # source of truth for those slots.
-    slot_is_definitely_empty = tray_state == 9 or tray_state == 10
+    #
+    # ...except that `state` cannot carry that meaning. Two independent ways
+    # a loaded slot reads 9 here:
+    #
+    #   - an AMS-HT reports its LOADED tray as 9, not 11, because it does not
+    #     feed into a shared buffer the way a 4-slot AMS does (#2594, and the
+    #     merge above skips its own state heuristic for HT units for exactly
+    #     this reason). So this branch called every HT slot empty on sight.
+    #   - apply_tray_exist_bits stamps state=9 on any slot whose tray_exist_bits
+    #     bit is 0 and never takes it back when the bit returns, so a slot that
+    #     was briefly emptied keeps the 9 until something configures it.
+    #
+    # Either way the slot sits at exists=True, state=9, this branch took the
+    # pending path, nothing was published, and the printer kept showing "?"
+    # (#3084 — reported against an H2C's AMS-HT, where both apply). Firmware's
+    # presence bit is what actually answers "is a spool in this slot", and the
+    # printer card has read it ahead of `state` since #2527.
+    #
+    # It is allowed to overrule the 9 and nothing else. A bit reading *empty*
+    # deliberately does NOT start suppressing pushes that go out today: the
+    # cost of being wrong there is a slot that silently stops configuring, on
+    # whichever AMS variant we compute the bit position wrong for, against a
+    # saving of one MQTT message the firmware would have dropped anyway.
+    slot_is_definitely_empty = tray_has_spool is not True and (tray_state == 9 or tray_state == 10)
     configured = False
     if not slot_is_definitely_empty:
         try:

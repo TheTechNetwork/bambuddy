@@ -2022,6 +2022,7 @@ async def on_ams_change(printer_id: int, ams_data: list):
             from backend.app.api.routes.inventory import _find_tray_in_ams_data
             from backend.app.models.spool import Spool as _Spool
             from backend.app.models.spool_assignment import SpoolAssignment as SA
+            from backend.app.services.ams_slot_presence import spool_present
             from backend.app.services.inventory_mode import spoolman_owns_assignments
 
             # Built-in assignments only. Since #2812 they survive a switch to
@@ -2138,7 +2139,18 @@ async def on_ams_change(printer_id: int, ams_data: list):
                     # (#1322). The state ∉ {9,10} guard keeps the firmware's
                     # explicit "empty" signals authoritative over any stale
                     # tray_type that might survive the relay's auto-clearing.
-                    loaded = cur_state == 11 or (cur_state not in (9, 10) and cur_type.strip())
+                    #
+                    # tray_exist_bits comes first because that guard cannot tell
+                    # a firmware "empty" from Bambuddy's own: apply_tray_exist_bits
+                    # writes state=9 when the bit is 0 and leaves it there when the
+                    # bit returns. A non-RFID spool inserted into a pre-assigned
+                    # slot brings no tray_type with it, so the stale 9 made this
+                    # expression false forever and the deferred config never fired
+                    # — the deadlock #1322 removed from the assign path, still in
+                    # place here (#3084, #3100).
+                    loaded = spool_present(current_tray) is True or (
+                        cur_state == 11 or (cur_state not in (9, 10) and cur_type.strip())
+                    )
                     if not fp_type.strip() and loaded and assignment.spool:
                         try:
                             from backend.app.api.routes.inventory import (
@@ -2183,6 +2195,23 @@ async def on_ams_change(printer_id: int, ams_data: list):
                             logger.info(
                                 "Auto-unlink skipped: spool %d AMS%d-T%d — tray data cleared during a running print "
                                 "(runout?)",
+                                assignment.spool_id,
+                                assignment.ams_id,
+                                assignment.tray_id,
+                            )
+                            continue
+                        # Same reasoning off the print, on firmware's own say-so:
+                        # a blank tray report from a slot whose tray_exist_bits
+                        # bit is set describes a spool the AMS cannot identify —
+                        # a non-RFID one, or one whose slot was reset — not a
+                        # spool that was taken out. Deleting the assignment there
+                        # threw away the identity the user had supplied, which is
+                        # the only place it existed (#3100). A slot the bit calls
+                        # empty, or one that carries no bit at all, still unlinks.
+                        if spool_present(current_tray) is True and not cur_color.strip() and not cur_type.strip():
+                            logger.info(
+                                "Auto-unlink skipped: spool %d AMS%d-T%d — slot still occupied, "
+                                "tray reports no filament data yet",
                                 assignment.spool_id,
                                 assignment.ams_id,
                                 assignment.tray_id,
@@ -2594,6 +2623,7 @@ async def on_ams_change(printer_id: int, ams_data: list):
 
             from backend.app.models.spool_assignment import SpoolAssignment
             from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
+            from backend.app.services.ams_slot_presence import spool_present
             from backend.app.services.inventory_mode import spoolman_owns_assignments
 
             # Built-in remaining weight, used by sync_ams_tray only when the
@@ -2662,7 +2692,16 @@ async def on_ams_change(printer_id: int, ams_data: list):
                         # completion (#1459), so deleting the row mid-print
                         # loses the runout segment's usage — the same failure
                         # the internal inventory's auto-unlink had.
-                        if not printing_now:
+                        #
+                        # Nor when firmware's presence bit says the slot is
+                        # occupied. parse_ams_tray calls a tray with no type or
+                        # no colour empty, and a spool the AMS cannot read has
+                        # neither until something configures it — so a tag-less
+                        # spool assigned through the UI had its row deleted by
+                        # the first idle push after it was inserted. Same
+                        # deletion as the internal inventory's in #3100, same
+                        # answer, so the two modes stay in step.
+                        if not printing_now and spool_present(tray_data) is not True:
                             empty_slots.append((ams_id, tray_id_raw))
                         _clear_unknown_tag_dedup(printer_id, ams_id, tray_id_raw)
                         continue
