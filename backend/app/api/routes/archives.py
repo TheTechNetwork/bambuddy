@@ -40,6 +40,7 @@ from backend.app.services.bambu_ftp import ftps_handshake_blocked, list_files_re
 from backend.app.services.design_settings import overrides_from_config
 from backend.app.services.filament_requirements import annotate_rack_groups
 from backend.app.services.print_storage import (
+    REASON_FTPS_COOLOFF,
     REASON_INTERNAL_HISTORY,
     REASON_INTERNAL_STORAGE,
     REASON_NO_EXTERNAL_STORAGE,
@@ -581,12 +582,33 @@ async def no_3mf_warning(
     # all, so an install with one H2C and three older printers still gets the
     # H2C explanation rather than the generic one.
     #
+    # REASON_FTPS_COOLOFF leads, and it is the only one of these that reports a
+    # fault rather than a choice: the printer's file service refused a TLS
+    # handshake, so the sweep never ran and nothing about where the file went
+    # was ever tested. The other three describe an install working as
+    # configured, and each ends in something the operator can change. This one
+    # ends in "your printer is doing something we cannot yet explain", which is
+    # both the more urgent thing to say and the thing that produces a useful
+    # report. It also has to outrank them because the banner dismisses one-shot
+    # into localStorage: a reason ranked below another is not merely deferred,
+    # it is never shown to that user again (#2780).
+    #
+    # Ranking it first cannot mask a permanent cause, because a cool-off row is
+    # not permanent. The retry #2957 schedules clears the row's markers when it
+    # lands, so a row still carrying this slug is one where the retry failed too
+    # -- a printer whose file service is still refusing, days later.
+    #
     # REASON_INTERNAL_HISTORY comes last on purpose, even though it is the
     # narrowest: it is the one cause with no remedy at all -- the file was
     # already on the printer, in an area port 990 does not serve. The two ahead
     # of it each end in something the operator can do, so when an install has
     # both, the actionable explanation is the one worth the banner (#1820).
-    for candidate in (REASON_INTERNAL_STORAGE, REASON_NO_EXTERNAL_STORAGE, REASON_INTERNAL_HISTORY):
+    for candidate in (
+        REASON_FTPS_COOLOFF,
+        REASON_INTERNAL_STORAGE,
+        REASON_NO_EXTERNAL_STORAGE,
+        REASON_INTERNAL_HISTORY,
+    ):
         if candidate in reasons:
             return {"has_fallback": True, "reason": candidate}
     return {"has_fallback": True, "reason": None}

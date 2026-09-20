@@ -5024,7 +5024,7 @@ export const api = {
   getNo3MFWarning: () =>
     request<{
       has_fallback: boolean;
-      reason: 'internal_storage' | 'no_external_storage' | 'internal_history' | null;
+      reason: 'ftps_cooloff' | 'internal_storage' | 'no_external_storage' | 'internal_history' | null;
     }>(
       '/archives/no-3mf-warning',
     ),
