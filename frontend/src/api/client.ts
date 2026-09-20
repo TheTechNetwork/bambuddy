@@ -5664,6 +5664,20 @@ export const api = {
       chamber_temp_presets?: string;
       fan_speed_presets?: string;
     }>('/settings/ui-preferences'),
+  // Install configuration the app shell needs, for any signed-in user. Separate
+  // from getUiPreferences: that endpoint is public because its fields are
+  // defaults shipped with the app, while these describe how this deployment is
+  // configured. Neither requires settings:read -- which is the point, since a
+  // non-admin reading GET /settings gets a 403 and every gate that consults it
+  // silently takes its fallback (#3023). Keep in sync with _UI_FLAG_FIELDS in
+  // backend/app/api/routes/settings.py.
+  getUiFlags: () =>
+    request<{
+      billing_enabled?: boolean;
+      user_notifications_enabled?: boolean;
+      currency?: string;
+      check_updates?: boolean;
+    }>('/settings/ui-flags'),
   updateSettings: (data: AppSettingsUpdate) =>
     request<AppSettings>('/settings/', {
       method: 'PUT',
