@@ -84,6 +84,20 @@ def parse_ams_filament_backup_from_cfg(cfg_raw: object) -> bool | None:
         return None
 
 
+def is_printer_status_frame(print_data: dict) -> bool:
+    """True when a ``print`` payload is the printer reporting its own state.
+
+    Bambu firmware echoes a command's fields back in its acknowledgement, so a
+    `project_file` ack carries whatever Bambuddy put on the wire — including
+    the `cfg` bitmask and the per-job `timelapse` flag. Ingesting those as
+    telemetry means reading our own request back as the printer's state
+    (#3040). Only `push_status` (and the odd firmware that omits `command`
+    entirely on a status frame) describes the printer.
+    """
+    command = print_data.get("command")
+    return command is None or command == "push_status"
+
+
 # ── A2L "AMS Lite" unit-id normalisation (issue capture 2026-07-20) ──────────
 # The A2L reports its 4-slot AMS Lite as physical unit **id 16**, but the
 # firmware is internally inconsistent about it:
@@ -2200,7 +2214,15 @@ class BambuMQTTClient:
             # next 1-2 push_status frames may still carry the printer's OLD cfg
             # for ~3 s before the firmware reflects the change. Without this
             # gate the UI would flicker ON→OFF→ON. Same pattern xcam uses.
-            new_backup = parse_ams_filament_backup_from_cfg(print_data.get("cfg"))
+            # Only from a status frame: a project_file ack echoes our own
+            # `"cfg": "0"` back, which read as "printer says backup is OFF" and
+            # stuck on every family that doesn't repeat `cfg` in its periodic
+            # frames — P1S, A1, A1 Mini, A2L (#3040).
+            new_backup = (
+                parse_ams_filament_backup_from_cfg(print_data.get("cfg"))
+                if is_printer_status_frame(print_data)
+                else None
+            )
             if new_backup is not None and new_backup != self.state.ams_filament_backup:
                 hold_start = self._xcam_hold_start.get("print_option_auto_switch_filament")
                 if hold_start is not None and (time.time() - hold_start) <= self._xcam_hold_time:
@@ -4947,8 +4969,10 @@ class BambuMQTTClient:
             except (ValueError, TypeError):
                 logger.debug("[%s] could not parse stat field: %r", self.serial_number, data["stat"])
 
-        # Parse timelapse status (recording active during print)
-        if "timelapse" in data:
+        # Parse timelapse status (recording active during print). Status frames
+        # only — the project_file ack echoes back the per-job timelapse flag we
+        # asked for, which is a request, not the recorder's state (#3040).
+        if "timelapse" in data and is_printer_status_frame(data):
             logger.debug("[%s] timelapse field: %s", self.serial_number, data["timelapse"])
             self.state.timelapse = data["timelapse"] is True
             # Track if timelapse was ever active during this print
@@ -6001,7 +6025,11 @@ class BambuMQTTClient:
                     "vibration_cali": vibration_cali,
                     "layer_inspect": layer_inspect,
                     "use_ams": use_ams,
-                    "cfg": "0",
+                    # No "cfg": it is the printer's device-config bitmask
+                    # (auto-refill, detect-on-insert, chamber light, ...), not a
+                    # per-job field — BambuStudio's PrintParams has no such
+                    # member. We used to send "0"; firmware ignores it, but it
+                    # comes straight back in the project_file ack (#3040).
                     # extrude_cali_flag gates flow-dynamics calibration:
                     # 0 = never, 1 = force every print, 2 = auto (run only if the
                     # filament wasn't calibrated recently). #1721 saw stage 8
