@@ -42,6 +42,7 @@ If you sponsor and your name isn't here within 48h, please write an email to mar
 - [@freifunk-bamberg](https://github.com/freifunk-bamberg)
 - [@davisgoodmanv](https://github.com/davisgoodman)
 - [@Heidelberger2000](https://github.com/Heidelberger2000)
+- [@Xethm81](https://github.com/Xethm81)
 
 ## Backers ($5/mo+)
 
