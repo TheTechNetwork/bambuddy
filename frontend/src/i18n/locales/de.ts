@@ -1489,7 +1489,7 @@ export default {
     // Time
     time: {
       etaIfStartedNow: 'Fertigstellungszeit, wenn dieser Auftrag jetzt starten würde',
-      asap: 'Sofort',
+      whenFree: 'Sobald ein Drucker frei ist',
       overdue: 'Überfällig',
       now: 'Jetzt',
       lessThanMinute: 'In weniger als einer Minute',

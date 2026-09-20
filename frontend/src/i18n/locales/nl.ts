@@ -1505,7 +1505,7 @@ export default {
     // Time
     time: {
       etaIfStartedNow: 'Voltooiingstijd als deze taak nu zou starten',
-      asap: 'Zo snel mogelijk',
+      whenFree: 'Zodra een printer vrij is',
       overdue: 'Te laat',
       now: 'Nu',
       lessThanMinute: 'Binnen een minuut',

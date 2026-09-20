@@ -1489,7 +1489,7 @@ export default {
     // Time
     time: {
       etaIfStartedNow: 'Hora de finalización si este trabajo comenzara ahora',
-      asap: 'Lo antes posible',
+      whenFree: 'Cuando haya una impresora libre',
       overdue: 'Atrasada',
       now: 'Ahora',
       lessThanMinute: 'En menos de un minuto',

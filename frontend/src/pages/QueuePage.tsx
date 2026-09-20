@@ -664,11 +664,18 @@ function SortableQueueItem({
             {isPending && !item.manual_start && (
               <span className="flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5" />
+                {/* An item with no scheduled time used to render as "ASAP", which is the
+                    name of a dispatch mode the user may well not have picked -- ASAP and
+                    Queue differ only in insert position, and neither is stored on the
+                    item, so the two are indistinguishable here. Someone who chose Queue
+                    saw their row labelled ASAP and read it as Bambuddy overriding them
+                    (#2557, #3018). This column answers "when does it run", so it now says
+                    that instead of borrowing a mode name. */}
                 {item.scheduled_time
                   ? ((parseUTCDate(item.scheduled_time)?.getTime() ?? 0) - Date.now() < -60000
                       ? t?.('queue.time.overdue') ?? 'Overdue'
                       : formatRelativeTime(item.scheduled_time, timeFormat, t))
-                  : t?.('queue.time.asap') ?? 'ASAP'}
+                  : t?.('queue.time.whenFree') ?? 'When a printer is free'}
               </span>
             )}
           </div>

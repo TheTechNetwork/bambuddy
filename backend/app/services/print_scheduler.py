@@ -1186,6 +1186,38 @@ class PrintScheduler:
             )
             busy_printers: set[int] = {pid for (pid,) in busy_result.all() if pid is not None}
 
+            # Why each printer left this pass, recorded where the decision is
+            # made rather than re-derived when the summary is logged. #3018's
+            # bundle shows what the old summary produced: "printer 1 not
+            # available -- connected=True, state=IDLE" immediately followed by a
+            # dispatch to printer 1. Two things went wrong at once. The line read
+            # live state at log time, which by then no longer matched the state
+            # the decision was made on; and `busy_printers` holds both printers
+            # that cannot take work and printers this pass has claimed for it,
+            # which are opposite facts. It is the first line anyone greps for
+            # "why did my item not go out", so it has to say which.
+            busy_reasons: dict[int, str] = dict.fromkeys(busy_printers, "an item is already printing on it")
+
+            # Printers this pass is dispatching to. They are in busy_printers so
+            # nothing else in the pass targets them -- that is a reservation, not
+            # an obstruction, and the summary says so.
+            claimed_printers: set[int] = set()
+
+            def mark_busy(printer_id: int, reason: str) -> None:
+                """Take ``printer_id`` out of this pass, recording why.
+
+                First reason wins: a printer already excluded by a stronger fact
+                -- a print running on it -- must not be relabelled by a weaker
+                check that ran later and would have excluded it anyway.
+                """
+                busy_printers.add(printer_id)
+                busy_reasons.setdefault(printer_id, reason)
+
+            def claim_printer(printer_id: int) -> None:
+                """Reserve ``printer_id`` for an item this pass is dispatching."""
+                claimed_printers.add(printer_id)
+                mark_busy(printer_id, "selected for dispatch in this pass")
+
             # Defense-in-depth (#1157): augment busy_printers with any printer
             # still in its post-dispatch hold window. Empirically, the DB seed
             # above can miss in-flight items in a multi-plate batch — same-file
@@ -1196,7 +1228,7 @@ class PrintScheduler:
             # timing.
             for held_printer_id in list(self._dispatch_holds.keys()):
                 if self._printer_in_dispatch_hold(held_printer_id):
-                    busy_printers.add(held_printer_id)
+                    mark_busy(held_printer_id, "still inside its post-dispatch hold window")
 
             # Exclude printers whose upload is still in flight from an earlier
             # pass (#2602). The row is `pending` until the upload finishes and
@@ -1205,7 +1237,7 @@ class PrintScheduler:
             # busy_printers, its auto-drying) out of the pass during the upload.
             for _task, inflight_pid in self._inflight.values():
                 if inflight_pid is not None:
-                    busy_printers.add(inflight_pid)
+                    mark_busy(inflight_pid, "an upload to it is still in flight")
 
             # Snapshot taken here, before the item loop adds anything (#2801).
             #
@@ -1374,16 +1406,16 @@ class PrintScheduler:
                                 printer_idle = self._is_printer_idle(item.printer_id, require_plate_clear)
                             else:
                                 logger.warning("Could not power on printer %s via smart plug", item.printer_id)
-                                busy_printers.add(item.printer_id)
+                                mark_busy(item.printer_id, "smart-plug power-on failed")
                                 continue
                         else:
                             # No plug or auto_on disabled
-                            busy_printers.add(item.printer_id)
+                            mark_busy(item.printer_id, "offline, with no smart plug to power it on")
                             continue
 
                     # Check if printer is idle (busy with another print)
                     if not printer_idle:
-                        busy_printers.add(item.printer_id)
+                        mark_busy(item.printer_id, "not idle")
                         continue
 
                     # Drying blocks the queue, if the user asked it to. A hold
@@ -1392,7 +1424,7 @@ class PrintScheduler:
                     if self._drying_in_progress.get(item.printer_id) and await self._get_bool_setting(
                         db, "queue_drying_block"
                     ):
-                        busy_printers.add(item.printer_id)
+                        mark_busy(item.printer_id, "drying, and drying is set to block the queue")
                         continue
 
                     # Check condition (previous print success)
@@ -1438,7 +1470,7 @@ class PrintScheduler:
                     # its place in this printer's queue.
                     if _library_row_conflict(item):
                         skip_reasons["library_row_in_use"] = skip_reasons.get("library_row_in_use", 0) + 1
-                        busy_printers.add(item.printer_id)
+                        mark_busy(item.printer_id, "holding its place while another item releases a library row")
                         continue
 
                     # Print takes priority: stop a cycle Bambuddy armed, now
@@ -1468,7 +1500,7 @@ class PrintScheduler:
                     # immediately, so nothing else in this pass can target it.
                     _claim_library_row(item)
                     dispatch_ids.append(item.id)
-                    busy_printers.add(item.printer_id)
+                    claim_printer(item.printer_id)
 
                     # SJF starvation guard: mark items that were jumped
                     if sjf_enabled and item.print_time_seconds is not None:
@@ -1674,7 +1706,7 @@ class PrintScheduler:
 
                         _claim_library_row(item)
                         dispatch_ids.append(item.id)
-                        busy_printers.add(printer_id)
+                        claim_printer(printer_id)
 
                         # SJF starvation guard: mark model-based items that were jumped
                         if sjf_enabled and item.print_time_seconds is not None:
@@ -1701,20 +1733,24 @@ class PrintScheduler:
             # useless for working out why an item did not go out.
             if skip_reasons:
                 logger.info("Queue skip summary: %s", skip_reasons)
-            if busy_printers:
-                # Log why each printer was busy (first time it was checked)
-                for pid in busy_printers:
-                    state = printer_manager.get_status(pid)
-                    connected = printer_manager.is_connected(pid)
-                    awaiting = printer_manager.is_awaiting_plate_clear(pid)
-                    state_name = state.state if state else "NO_STATUS"
-                    logger.info(
-                        "Queue: printer %d not available — connected=%s, state=%s, awaiting_plate_clear=%s",
-                        pid,
-                        connected,
-                        state_name,
-                        awaiting,
-                    )
+            for pid in sorted(busy_printers):
+                reason = busy_reasons.get(pid, "no reason recorded")
+                if pid in claimed_printers:
+                    logger.info("Queue: printer %d reserved — %s", pid, reason)
+                    continue
+                # The three live fields stay, because they are what someone
+                # reading a bundle wants next -- but they are labelled as read
+                # now, not as the state the decision was made on, which is what
+                # made the old line contradict itself.
+                state = printer_manager.get_status(pid)
+                logger.info(
+                    "Queue: printer %d unavailable — %s (now: connected=%s, state=%s, awaiting_plate_clear=%s)",
+                    pid,
+                    reason,
+                    printer_manager.is_connected(pid),
+                    state.state if state else "NO_STATUS",
+                    printer_manager.is_awaiting_plate_clear(pid),
+                )
 
             # Keep-warm is a comfort feature; dispatch is not. It sits between
             # selection and `_launch_uploads`, so anything raising here would

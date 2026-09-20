@@ -1489,7 +1489,7 @@ export default {
     // Zaman
     time: {
       etaIfStartedNow: 'Bu iş şimdi başlatılırsa tamamlanma saati',
-      asap: 'ASAP',
+      whenFree: 'Bir yazıcı boşaldığında',
       overdue: 'Gecikmiş',
       now: 'Şimdi',
       lessThanMinute: 'Bir dakikadan az',

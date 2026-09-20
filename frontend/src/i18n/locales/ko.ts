@@ -1418,7 +1418,7 @@ export default {
     },
     time: {
       etaIfStartedNow: '이 작업을 지금 시작할 경우의 완료 예정 시각',
-      asap: '즉시',
+      whenFree: '프린터가 사용 가능해지면',
       overdue: '기한 초과',
       now: '지금',
       lessThanMinute: '1분 이내',

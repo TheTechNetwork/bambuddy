@@ -1504,7 +1504,7 @@ export default {
     // Time
     time: {
       etaIfStartedNow: "Час завершення, якщо запустити це завдання зараз",
-      asap: "Якнайшвидше",
+      whenFree: "Коли принтер звільниться",
       overdue: "Прострочено",
       now: "Зараз",
       lessThanMinute: "Менше ніж за хвилину",

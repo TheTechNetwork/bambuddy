@@ -1488,7 +1488,7 @@ export default {
     // Time
     time: {
       etaIfStartedNow: 'このジョブを今開始した場合の完了予定時刻',
-      asap: '即時',
+      whenFree: 'プリンターが空き次第',
       overdue: '期限超過',
       now: '今すぐ',
       lessThanMinute: '1分以内',

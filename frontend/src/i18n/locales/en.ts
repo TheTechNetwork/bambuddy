@@ -1505,7 +1505,7 @@ export default {
     // Time
     time: {
       etaIfStartedNow: 'Completion time if this job started now',
-      asap: 'ASAP',
+      whenFree: 'When a printer is free',
       overdue: 'Overdue',
       now: 'Now',
       lessThanMinute: 'In less than a minute',
