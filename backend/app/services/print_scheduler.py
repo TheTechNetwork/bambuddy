@@ -5117,6 +5117,34 @@ class PrintScheduler:
                 return False
         return True
 
+    def _preheat_flap_to_cooling(self, item_id: int, printer: Printer) -> None:
+        """Put the airduct flap back to cooling for a print that wants no chamber heat.
+
+        The full preheat stage does this as part of its own dispatch: an H2D
+        left in heating mode by the ABS job before it would otherwise cook the
+        PLA that follows. The skip path never reaches that code, so it calls
+        this instead -- one idempotent MQTT command, no waiting, and nothing to
+        add to the rollback pin, because a flap set to cooling for a print that
+        needs no heat is where it should have been either way.
+
+        Best-effort like everything else in the stage: a refused command logs
+        and the dispatch carries on.
+        """
+        model = printer.model or ""
+        if not supports_airduct(model):
+            return
+        state = printer_manager.get_status(printer.id)
+        current = getattr(state, "airduct_mode", None) if state else None
+        if current == _AIRDUCT_MODE_COOLING:
+            return
+        client = printer_manager.get_client(printer.id)
+        if client is None:
+            return
+        try:
+            client.set_airduct_mode("cooling")
+        except Exception as exc:
+            logger.warning("Queue item %s: preheat-skip airduct cooling failed: %s", item_id, exc)
+
     async def _preheat_and_soak(
         self,
         db: AsyncSession,
@@ -5140,9 +5168,14 @@ class PrintScheduler:
           2. Chamber target — `item.preheat_chamber_target_override` if non-null;
              else max of `preheat_filament_targets[normalize(t.tray_type)]`
              across the trays `item.ams_mapping` names (every loaded slot when
-             it names none); else 0 (skips chamber phase, keeps bed phase +
-             soak timer).
-          3. Three hardware tiers branch the wait loop:
+             it names none).
+          3. A target of 0 off the filament map skips the whole stage: the
+             materials this print loads want no chamber, so there is nothing to
+             soak for and the bed phase would only delay the upload (#3041).
+             An explicit 0 typed into the per-item override, or a per-item
+             'on', still runs the bed phase and the soak — both are the user
+             asking for a warm bed in so many words.
+          4. Three hardware tiers branch the wait loop:
              - Chamber heater (H2C/H2D/H2DPro/H2S/X2D/X1E via supports_chamber_heater):
                send M141 to the resolved target, then wait for the chamber sensor
                to reach it (or the max-wait timeout to elapse).
@@ -5178,9 +5211,10 @@ class PrintScheduler:
         # Chamber target resolution:
         #   1. Explicit per-item override beats everything (user knows best).
         #   2. Otherwise derive from the filament types this print loads, via
-        #      the per-filament target map. PLA-only print derives 0 → chamber
-        #      phase auto-skips without the user touching anything, even when
-        #      an ASA spool is sitting in another slot of the same AMS (#2886).
+        #      the per-filament target map. A PLA-only print derives 0 and the
+        #      block below skips the stage without the user touching anything,
+        #      even when an ASA spool is sitting in another slot of the same
+        #      AMS (#2886).
         explicit_target = getattr(item, "preheat_chamber_target_override", None)
         if explicit_target is not None and explicit_target > 0:
             chamber_target = int(explicit_target)
@@ -5192,6 +5226,31 @@ class PrintScheduler:
             targets = await self._get_preheat_filament_targets(db)
             chamber_target = self._derive_chamber_target(printer, targets, item)
             chamber_source = "filament-map"
+
+        # Nothing to preheat *for*. A zero that came out of the filament map is
+        # the map saying this print's materials want no chamber conditioning --
+        # PLA, PETG, TPU and PVA all sit at 0 by default. Running the stage
+        # anyway heated the bed and then held it for the full soak, which
+        # delayed every PLA dispatch by minutes and bought nothing: the print's
+        # own G-code sets the bed the moment it starts, so preheating it here
+        # only moves that heating ahead of the upload instead of overlapping
+        # with it, and the soak has no chamber to condition (#3041).
+        #
+        # An explicit statement from the user still runs the stage. Forcing the
+        # per-item override to 'on', or typing a chamber target of exactly 0,
+        # both mean "preheat the bed for this print" -- the second is
+        # documented as doing precisely that. Only the automatic path, the
+        # global toggle plus the filament map, short-circuits here.
+        if chamber_target <= 0 and chamber_source == "filament-map" and override != "on":
+            logger.info(
+                "Queue item %s: preheat skipped -- the loaded filaments derive no chamber "
+                "target, so there is nothing to soak for (override=%s model=%s)",
+                item.id,
+                override,
+                printer.model or "",
+            )
+            self._preheat_flap_to_cooling(item.id, printer)
+            return True
 
         bed_target = int(archive.bed_temperature) if archive and archive.bed_temperature else 0
         if bed_target <= 0:
