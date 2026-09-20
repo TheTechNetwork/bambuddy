@@ -7,6 +7,7 @@ so a status flip is a user-facing regression — each one is asserted here.
 
 import ipaddress
 import ssl
+import subprocess
 import types
 from contextlib import ExitStack
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -14,6 +15,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from backend.app.services.printer_diagnostic import (
     _check_ftps_tls,
     _host_source_ip,
+    _interpreter_is_signed,
     _same_subnet,
     run_connection_diagnostic,
 )
@@ -77,6 +79,7 @@ class _Env:
         *,
         ports=None,
         ftps="ok",
+        platform="linux",
         runtime="Docker",
         network_mode="host",
         host_ip="192.168.1.5",
@@ -90,6 +93,11 @@ class _Env:
         self.ports = ports or _port_probe()
         # What the FTPS probe reports: "ok", "closed" or "no_tls" (#2780).
         self.ftps = ftps
+        # Pinned so the check list does not depend on the OS the suite runs
+        # on: the macos_local_network check is emitted on darwin only (#3114),
+        # and a test asserting the full set would otherwise pass on Linux CI
+        # and fail on a maintainer's Mac.
+        self.platform = platform
         # Container engine detect_container_runtime() reports, None for bare metal.
         self.runtime = runtime
         self.network_mode = network_mode
@@ -130,6 +138,7 @@ class _Env:
             client.report_messages_since_connect = self.report_messages_since_connect
             client.last_connect_error = self.connect_error
             manager.get_client.return_value = client
+        self._stack.enter_context(patch(f"{MOD}.sys.platform", self.platform))
         self._stack.enter_context(patch(f"{MOD}._check_port", new_callable=AsyncMock, side_effect=self.ports))
         self._stack.enter_context(patch(f"{MOD}._check_ftps_tls", new_callable=AsyncMock, return_value=self.ftps))
         self._stack.enter_context(patch(f"{MOD}.detect_container_runtime", return_value=self.runtime))
@@ -850,3 +859,111 @@ class TestFtpsTlsProbe:
         assert capped.minimum_version == ssl.TLSVersion.TLSv1_2
         assert uncapped.maximum_version != ssl.TLSVersion.TLSv1_2
         assert uncapped.minimum_version == ssl.TLSVersion.TLSv1_2
+
+
+def _signature_probe(signed):
+    """Patch ``_interpreter_is_signed`` to answer ``signed``.
+
+    The platform itself is pinned by ``_Env(platform="darwin")``, so that one
+    patch cannot be undone by the environment entered after it.
+    """
+    probe = MagicMock(return_value=signed)
+    return patch(f"{MOD}._interpreter_is_signed", probe), probe
+
+
+class TestMacosLocalNetworkCheck:
+    """The macOS Local Network (TCC) check (#3114).
+
+    macOS attributes the permission to a code signature. An unsigned
+    interpreter has no identity to anchor a grant to, so every connection to
+    the printer is dropped with no error and no prompt — the ports read as
+    unreachable and nothing says why.
+    """
+
+    async def test_absent_on_other_platforms(self):
+        """No dimmed "skipped" row for the users who are not on a Mac."""
+        with _Env(platform="linux", state=_state()):
+            result = await run_connection_diagnostic("192.168.1.50", printer=_printer())
+        assert "macos_local_network" not in _statuses(result)
+
+    async def test_passes_when_the_control_port_answers(self):
+        """A reachable printer is proof the permission is in place."""
+        patcher, probe = _signature_probe(False)
+        with patcher, _Env(platform="darwin", state=_state()):
+            result = await run_connection_diagnostic("192.168.1.50", printer=_printer())
+        assert _statuses(result)["macos_local_network"] == "pass"
+        # And the subprocess never runs on a healthy diagnostic.
+        probe.assert_not_called()
+
+    async def test_unsigned_interpreter_names_the_repair(self):
+        patcher, _probe = _signature_probe(False)
+        with patcher, _Env(platform="darwin", ports=_port_probe({8883: False}), state=_state()):
+            result = await run_connection_diagnostic("192.168.1.50", printer=_printer())
+        check = _check(result, "macos_local_network")
+        assert check.status == "warn"
+        assert check.params["reason"] == "unsigned"
+        # The path is carried so the user can see which interpreter is meant.
+        assert check.params["executable"]
+
+    async def test_signed_interpreter_points_at_system_settings(self):
+        """arm64 always has an ad-hoc signature, so this is the common case.
+
+        Its identity is a hash of the binary, so a Python upgrade presents
+        macOS with a new application and strands the old grant. That is
+        repairable in System Settings, unlike an unsigned interpreter.
+        """
+        patcher, _probe = _signature_probe(True)
+        with patcher, _Env(platform="darwin", ports=_port_probe({8883: False}), state=_state()):
+            result = await run_connection_diagnostic("192.168.1.50", printer=_printer())
+        check = _check(result, "macos_local_network")
+        assert check.status == "warn"
+        assert check.params["reason"] == "permission"
+
+    async def test_undeterminable_signature_is_not_reported_as_unsigned(self):
+        """No codesign, no answer — and the specific advice is withheld.
+
+        It names a repair that rewrites a file in the user's Python install,
+        which must not be offered on a guess.
+        """
+        patcher, _probe = _signature_probe(None)
+        with patcher, _Env(platform="darwin", ports=_port_probe({8883: False}), state=_state()):
+            result = await run_connection_diagnostic("192.168.1.50", printer=_printer())
+        assert _check(result, "macos_local_network").params["reason"] == "permission"
+
+    async def test_never_turns_a_healthy_result_red(self):
+        """Only ever warn, and only when the port check already failed.
+
+        So this check cannot be the reason a diagnostic stops being green.
+        """
+        patcher, _probe = _signature_probe(False)
+        with patcher, _Env(platform="darwin", state=_state(), report_messages_since_connect=42):
+            result = await run_connection_diagnostic("192.168.1.50", printer=_printer())
+        assert result.overall == "ok"
+
+
+class TestInterpreterSignatureProbe:
+    """``codesign`` has three outcomes and they must stay distinguishable."""
+
+    def _run(self, **kwargs):
+        return patch(f"{MOD}.subprocess.run", **kwargs)
+
+    def test_zero_exit_means_signed(self):
+        with self._run(return_value=types.SimpleNamespace(returncode=0, stderr="")):
+            assert _interpreter_is_signed() is True
+
+    def test_not_signed_at_all_means_unsigned(self):
+        stderr = "/usr/local/.../python3.14: code object is not signed at all"
+        with self._run(return_value=types.SimpleNamespace(returncode=1, stderr=stderr)):
+            assert _interpreter_is_signed() is False
+
+    def test_other_failure_is_undeterminable(self):
+        """A bad path or a codesign that would not run is not evidence."""
+        with self._run(return_value=types.SimpleNamespace(returncode=1, stderr="No such file or directory")):
+            assert _interpreter_is_signed() is None
+
+    def test_probe_failure_never_raises(self):
+        """A diagnostic that 500s the page is worse than one that says nothing."""
+        with self._run(side_effect=OSError("boom")):
+            assert _interpreter_is_signed() is None
+        with self._run(side_effect=subprocess.TimeoutExpired(cmd="codesign", timeout=5.0)):
+            assert _interpreter_is_signed() is None

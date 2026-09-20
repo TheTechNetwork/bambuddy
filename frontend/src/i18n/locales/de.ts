@@ -6988,6 +6988,12 @@ export default {
         pass: 'Erreichbar — der Kamerastream funktioniert.',
         warn: 'Port {{port}} ist nicht erreichbar. Die Live-Kameraansicht funktioniert nicht. Dies betrifft das Drucken nicht.',
       },
+      macos_local_network: {
+        title: 'macOS-Berechtigung „Lokales Netzwerk“',
+        pass: 'macOS erlaubt Bambuddy den Zugriff auf das lokale Netzwerk.',
+        warn_unsigned: 'Das Python, das Bambuddy ausführt, hat keine Code-Signatur. Damit hat macOS nichts, woran es die Berechtigung „Lokales Netzwerk“ binden könnte, und verwirft jede Verbindung zum Drucker stillschweigend — ohne Fehler und ohne Nachfrage. Führe das Bambuddy-Update-Skript (install/update_macos.sh) aus, das die Signatur setzt, und starte Bambuddy anschließend neu. Interpreter: {{executable}}',
+        warn_permission: 'Wenn der Drucker eingeschaltet und unter dieser Adresse erreichbar ist, öffne Systemeinstellungen > Datenschutz & Sicherheit > Lokales Netzwerk und stelle sicher, dass das Python von Bambuddy aktiviert ist. macOS verwirft lokale Verbindungen sonst stillschweigend, und ein Python-Update kann die alte Berechtigung zurücklassen.',
+      },
       network_mode: {
         title: 'Container-Netzwerkmodus',
         genericRuntime: 'einem Container',

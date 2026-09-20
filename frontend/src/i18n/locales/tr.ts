@@ -6927,6 +6927,12 @@ export default {
         pass: 'Erişilebilir — kamera akışı çalışacak.',
         warn: 'Port {{port}} erişilemez. Canlı kamera görünümü çalışmayacak. Bu, baskıyı etkilemez.',
       },
+      macos_local_network: {
+        title: 'macOS Yerel Ağ izni',
+        pass: 'macOS, Bambuddy’nin yerel ağa erişmesine izin veriyor.',
+        warn_unsigned: 'Bambuddy’yi çalıştıran Python’un kod imzası yok; bu yüzden macOS Yerel Ağ iznini bağlayacak bir kimlik bulamıyor ve yazıcıya giden tüm bağlantıları hata vermeden, sormadan sessizce düşürüyor. İmzalamayı yapan Bambuddy güncelleme betiğini (install/update_macos.sh) çalıştırın, ardından Bambuddy’yi yeniden başlatın. Yorumlayıcı: {{executable}}',
+        warn_permission: 'Yazıcı açıksa ve bu adresten erişilebiliyorsa Sistem Ayarları > Gizlilik ve Güvenlik > Yerel Ağ bölümünü açıp Bambuddy’nin Python’unun etkin olduğundan emin olun. Etkin değilse macOS yerel bağlantıları sessizce düşürür; ayrıca Python güncellemesi eski izni geride bırakabilir.',
+      },
       network_mode: {
         title: 'Konteyner ağ modu',
         genericRuntime: 'bir konteyner',

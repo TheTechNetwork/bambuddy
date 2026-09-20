@@ -6975,6 +6975,12 @@ export default {
         pass: '可达 — 摄像头视频流将正常工作。',
         warn: '端口 {{port}} 不可达。实时摄像头视图将无法工作。这不影响打印。',
       },
+      macos_local_network: {
+        title: 'macOS 本地网络权限',
+        pass: 'macOS 已允许 Bambuddy 访问本地网络。',
+        warn_unsigned: '运行 Bambuddy 的 Python 没有代码签名，macOS 因此无法将本地网络权限绑定到任何身份，会静默丢弃所有到打印机的连接——既没有错误，也不会弹出授权提示。请运行会完成签名的 Bambuddy 更新脚本 (install/update_macos.sh)，然后重启 Bambuddy。解释器：{{executable}}',
+        warn_permission: '如果打印机已开机并可通过该地址访问，请打开 系统设置 > 隐私与安全性 > 本地网络，确认 Bambuddy 使用的 Python 已启用。未启用时 macOS 会静默丢弃本地连接，而且升级 Python 可能不会保留原有授权。',
+      },
       network_mode: {
         title: '容器网络模式',
         genericRuntime: '容器',

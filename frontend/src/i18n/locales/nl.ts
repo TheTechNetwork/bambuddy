@@ -7039,6 +7039,12 @@ export default {
         pass: 'Bereikbaar — de camerastream werkt.',
         warn: 'Poort {{port}} is niet bereikbaar. De livecamera werkt niet. Dit heeft geen invloed op afdrukken.',
       },
+      macos_local_network: {
+        title: 'macOS-toegang tot lokaal netwerk',
+        pass: 'macOS staat Bambuddy toe het lokale netwerk te bereiken.',
+        warn_unsigned: 'De Python waarmee Bambuddy draait heeft geen codehandtekening, dus macOS heeft niets om de toegang tot het lokale netwerk aan te koppelen en laat elke verbinding met de printer stilletjes vallen — zonder fout en zonder vraag. Voer het updatescript van Bambuddy (install/update_macos.sh) uit, dat de handtekening plaatst, en start Bambuddy daarna opnieuw. Interpreter: {{executable}}',
+        warn_permission: 'Staat de printer aan en is hij op dit adres bereikbaar, open dan Systeeminstellingen > Privacy en beveiliging > Lokaal netwerk en controleer of de Python van Bambuddy is ingeschakeld. Zo niet, dan laat macOS lokale verbindingen stilletjes vallen, en een Python-update kan de oude toestemming achterlaten.',
+      },
       network_mode: {
         title: 'Netwerkmodus van de container',
         genericRuntime: 'een container',

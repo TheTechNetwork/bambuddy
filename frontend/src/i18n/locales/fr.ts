@@ -6978,6 +6978,12 @@ export default {
         pass: 'Accessible — le flux de la caméra fonctionnera.',
         warn: 'Le port {{port}} est inaccessible. La vue caméra en direct ne fonctionnera pas. Cela n\'affecte pas l\'impression.',
       },
+      macos_local_network: {
+        title: 'Autorisation « Réseau local » de macOS',
+        pass: 'macOS autorise Bambuddy à accéder au réseau local.',
+        warn_unsigned: 'Le Python qui exécute Bambuddy n’a pas de signature de code : macOS n’a donc rien à quoi rattacher l’autorisation « Réseau local » et rejette silencieusement toutes les connexions vers l’imprimante, sans erreur ni demande. Lancez le script de mise à jour de Bambuddy (install/update_macos.sh), qui le signe, puis redémarrez Bambuddy. Interpréteur : {{executable}}',
+        warn_permission: 'Si l’imprimante est allumée et joignable à cette adresse, ouvrez Réglages Système > Confidentialité et sécurité > Réseau local et vérifiez que le Python de Bambuddy est activé. Sinon macOS rejette les connexions locales en silence, et une mise à jour de Python peut laisser l’ancienne autorisation derrière elle.',
+      },
       network_mode: {
         title: 'Mode réseau du conteneur',
         genericRuntime: 'un conteneur',

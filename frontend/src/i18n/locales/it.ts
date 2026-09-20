@@ -6977,6 +6977,12 @@ export default {
         pass: 'Raggiungibile — lo streaming della fotocamera funzionerà.',
         warn: 'La porta {{port}} non è raggiungibile. La visualizzazione live della fotocamera non funzionerà. Questo non influisce sulla stampa.',
       },
+      macos_local_network: {
+        title: 'Autorizzazione « Rete locale » di macOS',
+        pass: 'macOS consente a Bambuddy di raggiungere la rete locale.',
+        warn_unsigned: 'Il Python che esegue Bambuddy non ha una firma del codice, quindi macOS non ha nulla a cui associare l’autorizzazione « Rete locale » e scarta in silenzio ogni connessione alla stampante, senza errori e senza richiesta. Esegui lo script di aggiornamento di Bambuddy (install/update_macos.sh), che lo firma, poi riavvia Bambuddy. Interprete: {{executable}}',
+        warn_permission: 'Se la stampante è accesa e raggiungibile a questo indirizzo, apri Impostazioni di Sistema > Privacy e sicurezza > Rete locale e verifica che il Python di Bambuddy sia abilitato. In caso contrario macOS scarta le connessioni locali in silenzio, e un aggiornamento di Python può lasciare indietro la vecchia autorizzazione.',
+      },
       network_mode: {
         title: 'Modalità di rete del container',
         genericRuntime: 'un container',

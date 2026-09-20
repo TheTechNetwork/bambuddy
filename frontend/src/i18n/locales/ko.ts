@@ -7089,6 +7089,12 @@ export default {
         pass: '연결 가능 — 카메라 스트림이 작동합니다.',
         warn: '포트 {{port}}에 연결할 수 없습니다. 라이브 카메라 보기가 작동하지 않습니다. 인쇄에는 영향을 주지 않습니다.'
       },
+      macos_local_network: {
+        title: 'macOS 로컬 네트워크 권한',
+        pass: 'macOS가 Bambuddy의 로컬 네트워크 접근을 허용하고 있습니다.',
+        warn_unsigned: 'Bambuddy를 실행하는 Python에 코드 서명이 없어 macOS가 로컬 네트워크 권한을 연결할 대상을 찾지 못하고, 프린터로 향하는 모든 연결을 오류도 확인 창도 없이 조용히 차단합니다. 서명을 수행하는 Bambuddy 업데이트 스크립트(install/update_macos.sh)를 실행한 다음 Bambuddy를 재시작하십시오. 인터프리터: {{executable}}',
+        warn_permission: '프린터가 켜져 있고 이 주소로 연결할 수 있다면 시스템 설정 > 개인 정보 보호 및 보안 > 로컬 네트워크를 열어 Bambuddy의 Python이 활성화되어 있는지 확인하십시오. 활성화되어 있지 않으면 macOS는 로컬 연결을 조용히 차단하며, Python을 업데이트하면 이전 권한이 남지 않을 수 있습니다.',
+      },
       network_mode: {
         title: '컨테이너 네트워크 모드',
         genericRuntime: '컨테이너',

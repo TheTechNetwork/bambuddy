@@ -6989,6 +6989,12 @@ export default {
         pass: '到達可能 — カメラストリームは機能します。',
         warn: 'ポート{{port}}に到達できません。ライブカメラ表示は機能しません。これは印刷には影響しません。',
       },
+      macos_local_network: {
+        title: 'macOS のローカルネットワーク権限',
+        pass: 'macOS は Bambuddy のローカルネットワークへのアクセスを許可しています。',
+        warn_unsigned: 'Bambuddy を実行している Python にコード署名がないため、macOS はローカルネットワーク権限を結び付ける対象を持てず、プリンターへの接続をエラーも確認ダイアログもなく破棄します。署名を行う Bambuddy の更新スクリプト (install/update_macos.sh) を実行してから、Bambuddy を再起動してください。インタープリター: {{executable}}',
+        warn_permission: 'プリンターの電源が入っていてこのアドレスで到達できる場合は、システム設定 > プライバシーとセキュリティ > ローカルネットワーク を開き、Bambuddy の Python が有効になっているか確認してください。無効だと macOS はローカル接続を無言で破棄します。また Python を更新すると以前の許可が引き継がれないことがあります。',
+      },
       network_mode: {
         title: 'コンテナのネットワークモード',
         genericRuntime: 'コンテナ',
