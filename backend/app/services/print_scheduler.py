@@ -6,6 +6,7 @@ import logging
 import time
 import uuid
 from collections import deque
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -3772,6 +3773,61 @@ class PrintScheduler:
                 continue
         return out
 
+    # Materials whose AMS spelling differs from the key the tables above use.
+    # Bambu labels nylon "PA" while its own composites spell the family out, so
+    # PA6, PA11, PA12 and PAHT would otherwise miss a table with a perfectly
+    # good PA row (#3067).
+    #
+    # Mirrors DRYING_MATERIAL_ALIASES in frontend/src/utils/dryingPresets.ts.
+    # The drying popover has resolved these correctly since #2774 and the
+    # scheduler never did, which is exactly why #3067's reporter could dry a
+    # PA6-CF spool by hand while auto-drying skipped it every pass.
+    #
+    # PPA is here too. Polyphthalamide is a distinct polymer rather than a grade
+    # of nylon, so it is the one entry that is a judgement rather than a
+    # spelling -- but it is an aromatic polyamide, it absorbs moisture the same
+    # way, and PA's row is the hottest the table has. Drying it there is closer
+    # to right than not drying it at all, which is what it got before.
+    FILAMENT_KEY_ALIASES: dict[str, str] = {
+        "NYLON": "PA",
+        "PA6": "PA",
+        "PA11": "PA",
+        "PA12": "PA",
+        "PAHT": "PA",
+        "PPA": "PA",
+    }
+
+    @classmethod
+    def _resolve_filament_key(cls, tray_type: str | None, table: Mapping[str, object]) -> str | None:
+        """The key in *table* that answers for this tray's material, or None.
+
+        The printer reports the material in ``tray_type``, and it spells filled
+        and foamed variants out: PLA-CF, PETG-CF, ABS-GF, PLA-AERO, PA6-CF. The
+        tables here are keyed by base material, so matching the raw string alone
+        found a row for 8 of the 41 types a printer can report and skipped the
+        rest -- silently, because every caller reads "no row" as "nothing to do
+        for this tray". Auto-drying therefore ignored every composite spool on
+        the install (#3067).
+
+        Exact match first, so a table the user has extended with a row of its
+        own -- ``PA6-CF`` at a temperature they picked -- still wins over the
+        base material's. Then the suffix is dropped, then the alias map above
+        answers for the polyamide spellings.
+
+        Returns None rather than a default: what to do with an unrecognised
+        material differs per caller, and only the caller knows whether "no row"
+        means skip the tray or fall back to a catch-all. Nothing here invents a
+        temperature for a material the table does not list.
+        """
+        raw = cls._normalize_filament_type(tray_type or "")
+        if not raw:
+            return None
+        for candidate in (raw, raw.split("-")[0]):
+            key = cls.FILAMENT_KEY_ALIASES.get(candidate, candidate)
+            if key in table:
+                return key
+        return None
+
     @staticmethod
     def resolve_humidity_threshold(trays: list[dict], thresholds: dict[str, int], fallback: int) -> int:
         """Resolve the effective humidity threshold for an AMS unit (#1605).
@@ -3791,8 +3847,10 @@ class PrintScheduler:
             tray_type = str(tray.get("tray_type") or "").strip()
             if not tray_type:
                 continue
-            base_type = tray_type.split()[0].upper()
-            candidates.append(thresholds.get(base_type, default))
+            # A composite carries its base material's threshold when it has no
+            # row of its own, the same way it takes its drying preset (#3067).
+            key = PrintScheduler._resolve_filament_key(tray_type, thresholds)
+            candidates.append(thresholds[key] if key is not None else default)
         if not candidates:
             return default
         return min(candidates)
@@ -3815,9 +3873,17 @@ class PrintScheduler:
             tray_type = tray.get("tray_type", "")
             if not tray_type:
                 continue
-            # Normalize filament type for preset lookup (e.g., "PLA Basic" -> "PLA")
-            base_type = tray_type.split()[0].upper()
-            preset = presets.get(base_type)
+            # "PLA Basic" -> PLA, and "PA6-CF" -> PA rather than nothing at all,
+            # which is what stopped auto-drying on every composite spool (#3067).
+            base_type = self._resolve_filament_key(tray_type, presets)
+            if base_type is None:
+                continue
+            # The table is user-editable JSON with no per-row validation, so a
+            # row can be present and empty. That has always meant "skip this
+            # material", and it has to keep meaning it: the reads below fall
+            # back to 55C/12h per missing field, which is a temperature nobody
+            # chose and would deform a PLA spool.
+            preset = presets[base_type]
             if not preset:
                 continue
 
@@ -4617,8 +4683,18 @@ class PrintScheduler:
         """Reduce the printer's tray_type to a preset-lookup key. Mirrors the
         existing drying-preset normalisation (split-at-space, upper-case) so
         the two maps share vocabulary — "PLA Basic" → "PLA", "PA-CF" stays
-        "PA-CF" (no space to split on)."""
-        return tray_type.split()[0].upper() if tray_type else ""
+        "PA-CF" (no space to split on).
+
+        This is the first stage of ``_resolve_filament_key``, which goes on to
+        drop the suffix and consult the alias map; on its own it only decides
+        what the tray is called, not which row answers for it.
+
+        Indexing the split rather than testing the input: a tray_type of spaces
+        is truthy and splits to nothing, so the old ``if tray_type`` guard let
+        it through to an IndexError.
+        """
+        words = (tray_type or "").split()
+        return words[0].upper() if words else ""
 
     def _target_for_tray_type(self, tray_type: str | None, targets: dict[str, int]) -> int:
         """Per-filament chamber target for one tray's reported type, or 0 when
@@ -4629,14 +4705,19 @@ class PrintScheduler:
         not the 0 an unknown type falls to. The specific type is still tried
         first, so PETG-CF and PA-CF keep the hotter rows they are listed with
         (#2902).
+
+        That lookup is now the shared one, which adds the polyamide aliases on
+        top of the suffix it already dropped -- so PA6-CF reaches PA's row here
+        too, rather than the catch-all it was landing on (#3067).
         """
-        normalised = self._normalize_filament_type(tray_type or "")
-        if not normalised:
+        if not self._normalize_filament_type(tray_type or ""):
             return 0
-        target = targets.get(normalised)
-        if target is None:
-            target = targets.get(normalised.split("-")[0], targets.get("DEFAULT", 0))
-        return target
+        key = self._resolve_filament_key(tray_type, targets)
+        if key is not None:
+            return targets[key]
+        # A type the map does not list at all, which is not the same as a tray
+        # with nothing in it -- that already returned 0 above.
+        return targets.get("DEFAULT", 0)
 
     def _derive_chamber_target(
         self,
