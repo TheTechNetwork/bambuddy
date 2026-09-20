@@ -4968,7 +4968,7 @@ export default {
     linkToSpool: 'Link to Spool',
     tagLinked: 'Tag linked to spool',
     tagLinkFailed: 'Failed to link tag',
-    tagAlreadyLinked: 'Tag already linked to another spool',
+    tagAlreadyLinked: 'Tag already linked to spool #{{id}}',
     unknownTag: 'Unknown RFID tag detected',
     // Usage history
     usageHistory: 'Usage History',

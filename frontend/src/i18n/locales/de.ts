@@ -4923,7 +4923,7 @@ export default {
     linkToSpool: 'Mit Spule verknüpfen',
     tagLinked: 'Tag mit Spule verknüpft',
     tagLinkFailed: 'Tag-Verknüpfung fehlgeschlagen',
-    tagAlreadyLinked: 'Tag bereits mit anderer Spule verknüpft',
+    tagAlreadyLinked: 'Tag bereits mit Spule #{{id}} verknüpft',
     unknownTag: 'Unbekannter RFID-Tag erkannt',
     // Verbrauchshistorie
     usageHistory: 'Verbrauchshistorie',

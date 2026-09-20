@@ -4923,7 +4923,7 @@ export default {
     linkToSpool: 'スプールにリンク',
     tagLinked: 'タグがスプールにリンクされました',
     tagLinkFailed: 'タグのリンクに失敗しました',
-    tagAlreadyLinked: 'タグは既に別のスプールにリンクされています',
+    tagAlreadyLinked: 'タグは既にスプール #{{id}} にリンクされています',
     unknownTag: '不明なRFIDタグが検出されました',
     // Usage history
     usageHistory: '使用履歴',

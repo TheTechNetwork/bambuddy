@@ -4930,7 +4930,7 @@ export default {
     linkToSpool: 'Vincular a bobina',
     tagLinked: 'Etiqueta vinculada a la bobina',
     tagLinkFailed: 'Error al vincular la etiqueta',
-    tagAlreadyLinked: 'La etiqueta ya está vinculada a otra bobina',
+    tagAlreadyLinked: 'La etiqueta ya está vinculada a la bobina #{{id}}',
     unknownTag: 'Se detectó una etiqueta RFID desconocida',
     // Usage history
     usageHistory: 'Historial de uso',

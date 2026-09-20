@@ -4911,7 +4911,7 @@ export default {
     linkToSpool: 'Collega a bobina',
     tagLinked: 'Tag collegato alla bobina',
     tagLinkFailed: 'Impossibile collegare il tag',
-    tagAlreadyLinked: 'Tag già collegato a un\'altra bobina',
+    tagAlreadyLinked: 'Tag già collegato alla bobina #{{id}}',
     unknownTag: 'Tag RFID sconosciuto rilevato',
     // Usage history
     usageHistory: 'Cronologia utilizzo',

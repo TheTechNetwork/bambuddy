@@ -4690,7 +4690,7 @@ export default {
     linkToSpool: '스풀에 연결',
     tagLinked: '태그가 스풀에 연결됨',
     tagLinkFailed: '태그 연결 실패',
-    tagAlreadyLinked: '태그가 이미 다른 스풀에 연결됨',
+    tagAlreadyLinked: '태그가 이미 스풀 #{{id}}에 연결됨',
     unknownTag: '알 수 없는 RFID 태그 감지됨',
     usageHistory: '사용 기록',
     noUsageHistory: '사용 기록 없음',

@@ -4968,7 +4968,7 @@ export default {
     linkToSpool: 'Koppelen aan spoel',
     tagLinked: 'Tag aan spoel gekoppeld',
     tagLinkFailed: 'Tag koppelen mislukt',
-    tagAlreadyLinked: 'Tag is al aan een andere spoel gekoppeld',
+    tagAlreadyLinked: 'Tag is al aan spoel #{{id}} gekoppeld',
     unknownTag: 'Onbekende RFID-tag gedetecteerd',
     // Usage history
     usageHistory: 'Verbruiksgeschiedenis',

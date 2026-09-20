@@ -4917,7 +4917,7 @@ export default {
     linkToSpool: '链接到耗材',
     tagLinked: '标签已链接到耗材',
     tagLinkFailed: '链接标签失败',
-    tagAlreadyLinked: '标签已链接到其他耗材',
+    tagAlreadyLinked: '标签已链接到耗材 #{{id}}',
     unknownTag: '检测到未知 RFID 标签',
     // Usage history
     usageHistory: '使用历史',

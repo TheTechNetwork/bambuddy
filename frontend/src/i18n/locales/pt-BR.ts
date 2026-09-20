@@ -4911,7 +4911,7 @@ export default {
     linkToSpool: 'Vincular ao Carretel',
     tagLinked: 'Tag vinculada ao carretel',
     tagLinkFailed: 'Falha ao vincular tag',
-    tagAlreadyLinked: 'Tag já vinculada a outro carretel',
+    tagAlreadyLinked: 'Tag já vinculada ao carretel #{{id}}',
     unknownTag: 'Tag RFID desconhecida detectada',
     // Usage history
     usageHistory: 'Histórico de Uso',

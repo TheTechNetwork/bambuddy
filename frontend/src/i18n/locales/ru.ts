@@ -4690,7 +4690,7 @@ export default {
     linkToSpool: "Связать с катушкой",
     tagLinked: "Метка связана с катушкой",
     tagLinkFailed: "Не удалось связать метку",
-    tagAlreadyLinked: "Метка уже связана с другой катушкой",
+    tagAlreadyLinked: 'Метка уже связана с катушкой #{{id}}',
     unknownTag: "Обнаружена неизвестная RFID-метка",
     usageHistory: "История расхода",
     noUsageHistory: "Расход пока не зарегистрирован",

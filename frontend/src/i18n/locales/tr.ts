@@ -4902,7 +4902,7 @@ export default {
     linkToSpool: 'Makaraya Bağla',
     tagLinked: 'Etiket makaraya bağlandı',
     tagLinkFailed: 'Etiket bağlanamadı',
-    tagAlreadyLinked: 'Etiket zaten başka bir makaraya bağlı',
+    tagAlreadyLinked: 'Etiket zaten #{{id}} numaralı makaraya bağlı',
     unknownTag: 'Bilinmeyen RFID etiketi algılandı',
     usageHistory: 'Kullanım Geçmişi',
     noUsageHistory: 'Henüz kullanım kaydedilmedi',

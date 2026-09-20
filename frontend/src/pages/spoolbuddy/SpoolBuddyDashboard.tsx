@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import type { SpoolBuddyOutletContext } from '../../components/spoolbuddy/SpoolBuddyLayout';
-import { api, type InventorySpool, type Printer, type PrinterStatus } from '../../api/client';
+import { api, ApiError, type InventorySpool, type Printer, type PrinterStatus } from '../../api/client';
 import type { MatchedSpool } from '../../hooks/useSpoolBuddyState';
 import { useToast } from '../../contexts/ToastContext';
 import { SpoolIcon } from '../../components/spoolbuddy/SpoolIcon';
@@ -390,7 +390,18 @@ export function SpoolBuddyDashboard() {
       refetchSpools();
     } catch (e) {
       console.error('Failed to link tag:', e);
-      showToast(t('spoolman.linkFailed'), 'error');
+      // The tag is already on another spool -- name it, so the operator can
+      // walk to that spool instead of retrying a scan that cannot succeed.
+      // Both inventory modes answer this with the same structured 409 (#3110);
+      // every other failure keeps the generic toast.
+      const holder =
+        e instanceof ApiError && e.status === 409 && e.code === 'tag_already_linked'
+          ? e.detail?.spool_id
+          : undefined;
+      showToast(
+        typeof holder === 'number' ? t('inventory.tagAlreadyLinked', { id: holder }) : t('spoolman.linkFailed'),
+        'error',
+      );
     } finally {
       setShowLinkModal(false);
     }

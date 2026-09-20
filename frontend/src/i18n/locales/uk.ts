@@ -4965,7 +4965,7 @@ export default {
     linkToSpool: "Прив’язати до котушки",
     tagLinked: "Тег пов’язано з котушкою",
     tagLinkFailed: "Не вдалося зв’язати тег",
-    tagAlreadyLinked: "Тег уже пов’язано з іншою котушкою",
+    tagAlreadyLinked: 'Тег уже пов’язано з котушкою #{{id}}',
     unknownTag: "Виявлено невідомий тег RFID.",
     // Usage history
     usageHistory: "Історія використання",
