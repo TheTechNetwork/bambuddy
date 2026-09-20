@@ -1595,6 +1595,49 @@ class TestNo3MFWarningReason:
 
         assert response.json() == {"has_fallback": True, "reason": "no_external_storage"}
 
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_a_transfer_that_ran_out_of_time_is_reported(
+        self, async_client: AsyncClient, archive_factory, printer_factory, db_session
+    ):
+        """#3063's P1S had the file on its card and served it three times in the
+        two minutes after the archive flow gave up on it. Told to switch on
+        "Store sent files on external storage", that reporter would be switching
+        on a setting that was already on and had already worked.
+        """
+        printer = await printer_factory()
+        await archive_factory(
+            printer.id,
+            extra_data={"no_3mf_available": True, "no_3mf_reason": "ftp_transfer_failed"},
+        )
+
+        response = await async_client.get("/api/v1/archives/no-3mf-warning")
+
+        assert response.json() == {"has_fallback": True, "reason": "ftp_transfer_failed"}
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_a_slow_transfer_outranks_the_settled_causes_but_not_a_refused_handshake(
+        self, async_client: AsyncClient, archive_factory, printer_factory, db_session
+    ):
+        """Both temporary causes describe a file still sitting on the card, so
+        both outrank the three that describe an install working as configured.
+        Between the two, a printer that will not complete a TLS handshake is the
+        worse fault and keeps the banner.
+        """
+        printer = await printer_factory()
+        for reason in ("internal_storage", "no_external_storage", "internal_history"):
+            await archive_factory(printer.id, extra_data={"no_3mf_available": True, "no_3mf_reason": reason})
+        await archive_factory(printer.id, extra_data={"no_3mf_available": True, "no_3mf_reason": "ftp_transfer_failed"})
+
+        response = await async_client.get("/api/v1/archives/no-3mf-warning")
+        assert response.json() == {"has_fallback": True, "reason": "ftp_transfer_failed"}
+
+        await archive_factory(printer.id, extra_data={"no_3mf_available": True, "no_3mf_reason": "ftps_cooloff"})
+
+        response = await async_client.get("/api/v1/archives/no-3mf-warning")
+        assert response.json() == {"has_fallback": True, "reason": "ftps_cooloff"}
+
 
 class TestPrintLogEntryDelete:
     """#1687: per-row delete on the Print Log page.
