@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { render } from '../utils';
 import { ModelViewerModal } from '../../components/ModelViewerModal';
-import { setStreamToken } from '../../api/client';
+import { setMediaToken } from '../../api/client';
 import { openInSlicer } from '../../utils/slicer';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
@@ -343,12 +343,14 @@ describe('ModelViewerModal', () => {
       });
     });
 
-    // #2661: plate-thumbnail endpoints are gated behind a camera stream token
+    // #2661: plate-thumbnail endpoints are gated behind a query token
     // (an <img> can't send a Bearer header), so the src must carry ?token=.
     // Without it the 3D Preview thumbnails 401 while the Slice dialog (which
     // already appends the token) shows the same file's thumbnails fine.
-    it('appends the camera stream token to plate thumbnail URLs', async () => {
-      setStreamToken('tok-2661');
+    // #3025 moved these off the camera token onto the media token, so a user
+    // without camera:view can see them; the src requirement is unchanged.
+    it('appends the media token to plate thumbnail URLs', async () => {
+      setMediaToken('tok-2661');
       try {
         render(
           <ModelViewerModal
@@ -366,7 +368,7 @@ describe('ModelViewerModal', () => {
         expect(thumb.src).toContain('/api/v1/archives/1/plates/1/thumbnail');
         expect(thumb.src).toContain('token=tok-2661');
       } finally {
-        setStreamToken(null);
+        setMediaToken(null);
       }
     });
 

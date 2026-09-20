@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { X, ExternalLink, Box, Cog, Loader2, Layers, Check, Maximize2, Minimize2, ChevronDown } from 'lucide-react';
 import { ModelViewer } from './ModelViewer';
 import { Button } from './Button';
-import { api, withStreamToken } from '../api/client';
+import { api, withMediaToken } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
 import { isApiSliceableFileType, isSliceableFileType, openInSlicer, resolveDesktopSlicer, type SlicerType } from '../utils/slicer';
 import type { ArchivePlatesResponse, LibraryFilePlatesResponse, PlateMetadata } from '../types/plates';
@@ -578,7 +578,7 @@ export function ModelViewerModal({ archiveId, libraryFileId, title, fileType, on
                           >
                             {plate.has_thumbnail && plate.thumbnail_url ? (
                               <img
-                                src={withStreamToken(plate.thumbnail_url)}
+                                src={withMediaToken(plate.thumbnail_url)}
                                 alt={`Plate ${plate.index}`}
                                 className={`${splitFullscreen ? 'w-8 h-8' : 'w-10 h-10'} rounded object-cover bg-bambu-dark-tertiary`}
                               />

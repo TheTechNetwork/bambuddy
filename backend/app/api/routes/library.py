@@ -22,7 +22,7 @@ from sqlalchemy.orm import selectinload
 
 from backend.app.api.routes.cloud import resolve_api_key_cloud_owner
 from backend.app.core.auth import (
-    RequireCameraStreamTokenIfAuthEnabled,
+    require_media_token_ownership,
     require_ownership_permission,
     require_permission_if_auth_enabled,
 )
@@ -3213,16 +3213,22 @@ async def get_library_file_plate_thumbnail(
     file_id: int,
     plate_index: int,
     db: AsyncSession = Depends(get_db),
-    _: None = RequireCameraStreamTokenIfAuthEnabled,
+    auth_result: tuple[User | None, bool] = Depends(
+        require_media_token_ownership(
+            Permission.LIBRARY_READ_ALL,
+            Permission.LIBRARY_READ_OWN,
+        )
+    ),
 ):
-    """Get the thumbnail image for a specific plate from a library file."""
+    """Get the thumbnail image for a specific plate from a library file.
+
+    Ownership-gated on the same terms as the file itself (#3025).
+    """
     from starlette.responses import Response
 
+    user, can_read_all = auth_result
     result = await db.execute(LibraryFile.active().where(LibraryFile.id == file_id))
-    lib_file = result.scalar_one_or_none()
-
-    if not lib_file:
-        raise HTTPException(status_code=404, detail="File not found")
+    lib_file = _ensure_library_file_visible(result.scalar_one_or_none(), user, can_read_all)
 
     file_path = Path(app_settings.base_dir) / lib_file.file_path
     if not file_path.exists():
@@ -5293,14 +5299,23 @@ async def download_library_file_for_slicer(
 async def get_thumbnail(
     file_id: int,
     db: AsyncSession = Depends(get_db),
-    _: None = RequireCameraStreamTokenIfAuthEnabled,
+    auth_result: tuple[User | None, bool] = Depends(
+        require_media_token_ownership(
+            Permission.LIBRARY_READ_ALL,
+            Permission.LIBRARY_READ_OWN,
+        )
+    ),
 ):
-    """Get a file's thumbnail."""
-    result = await db.execute(LibraryFile.active().where(LibraryFile.id == file_id))
-    file = result.scalar_one_or_none()
+    """Get a file's thumbnail.
 
-    if not file:
-        raise HTTPException(status_code=404, detail="File not found")
+    Accepts a media token in ``?token=`` because <img> cannot send headers.
+    Ownership is enforced here rather than assumed from the credential: until
+    #3025 this route took the anonymous camera-stream token, which carried no
+    principal, so any holder could read any user's thumbnail by walking IDs.
+    """
+    user, can_read_all = auth_result
+    result = await db.execute(LibraryFile.active().where(LibraryFile.id == file_id))
+    file = _ensure_library_file_visible(result.scalar_one_or_none(), user, can_read_all)
 
     abs_thumb_path = to_absolute_path(file.thumbnail_path)
     if not abs_thumb_path or not abs_thumb_path.exists():
