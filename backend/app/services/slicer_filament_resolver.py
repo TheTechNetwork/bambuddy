@@ -231,12 +231,21 @@ async def resolve_slicer_filament(
                     # gets it into an AMS slot as itself: the printer stores
                     # that id, the slicer matches its presets against it, and
                     # the 8-character field fits it exactly ("P" + 7 hex).
-                    # Bambu Cloud puts it in either of two places -- on the
-                    # envelope, or inside the preset JSON under `setting` --
-                    # the same spread `filament_type` above already handles.
-                    # Reading only the envelope is how a custom preset fell
-                    # through to the base_id branch below and reached the
-                    # slicer as the Bambu profile it inherits from (#3003).
+                    #
+                    # Bambu Cloud normally returns it on the envelope, which is
+                    # what the captures in #1053 show for a Studio-created
+                    # preset (filament_id: "Pbd31b30"). The `setting` fallback
+                    # here is belt-and-braces for a response that carries it in
+                    # the preset JSON instead, the same spread `filament_type`
+                    # above has to handle -- no captured response has needed it
+                    # yet, and it costs a dict lookup to be ready for one.
+                    #
+                    # An Orca-created preset has no filament_id anywhere: the
+                    # envelope says null and `setting` is a delta from the base
+                    # (#1053 again). Those legitimately fall to base_id below
+                    # and reach the slicer as the profile they inherit from --
+                    # an OrcaSlicer preset-format gap, filed upstream as
+                    # OrcaSlicer PR #13315, not something resolvable here.
                     own_filament_id = detail.get("filament_id") or (
                         cloud_setting.get("filament_id") if isinstance(cloud_setting, dict) else None
                     )

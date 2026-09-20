@@ -521,10 +521,10 @@ export function ConfigureAmsSlotModal({
             const detail = await api.getCloudSettingDetail(selectedPresetId);
             // The preset's own filament_id is what puts it in the slot as
             // itself — the printer stores that id and the slicer matches its
-            // presets against it. Bambu Cloud returns it on the envelope for
-            // some presets and inside the preset JSON under `setting` for
-            // others; looking only at the envelope is how a custom preset
-            // silently became its inherited base profile (#3003).
+            // presets against it. Bambu Cloud normally returns it on the
+            // envelope; the `setting` fallback covers a response that carries
+            // it in the preset JSON instead. A preset created in Orca has none
+            // in either place (#1053), and legitimately falls through.
             const nested = detail.setting?.filament_id;
             const ownFilamentId = detail.filament_id || (typeof nested === 'string' ? nested : '');
             if (ownFilamentId) {
