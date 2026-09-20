@@ -671,14 +671,20 @@ async def resolve_session_max_minutes(db: AsyncSession) -> int:
 
 
 # --- Slicer download tokens ---
-# Short-lived, single-use tokens for slicer protocol handlers that can't send
-# auth headers.  Stored in AuthEphemeralToken (token_type=TokenType.SLICER_DOWNLOAD)
-# so they survive server restarts and work in multi-worker deployments (M-3).
+# Short-lived, resource-bound tokens for slicer protocol handlers and browser
+# downloads that can't send auth headers.  Stored in AuthEphemeralToken
+# (token_type=TokenType.SLICER_DOWNLOAD) so they survive server restarts and
+# work in multi-worker deployments (M-3).
+#
+# Whether redemption consumes the token is the *caller's* choice, made at
+# verify time -- see ``verify_slicer_download_token``.  The row is identical
+# either way, so a token is never "the reusable kind"; the endpoint it is
+# presented to decides.
 SLICER_TOKEN_EXPIRE_MINUTES = 5
 
 
 async def create_slicer_download_token(resource_type: str, resource_id: int) -> str:
-    """Create a short-lived, single-use download token for slicer protocol handlers."""
+    """Create a short-lived download token for slicer protocol handlers."""
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(minutes=SLICER_TOKEN_EXPIRE_MINUTES)
     token = secrets.token_urlsafe(24)
@@ -703,30 +709,49 @@ async def create_slicer_download_token(resource_type: str, resource_id: int) -> 
     return token
 
 
-async def verify_slicer_download_token(token: str, resource_type: str, resource_id: int) -> bool:
-    """Verify and atomically consume a slicer download token.
+async def verify_slicer_download_token(
+    token: str,
+    resource_type: str,
+    resource_id: int,
+    *,
+    single_use: bool = True,
+) -> bool:
+    """Verify a slicer download token, consuming it unless ``single_use`` is False.
 
     Returns True only if the token is valid, unexpired, and bound to the given resource.
-    DELETE...RETURNING ensures the token is single-use even under concurrent requests.
 
-    M-NEW-1 fix: nonce (resource key) is included in the WHERE clause so the DELETE
+    With ``single_use=True`` (the default) redemption is a DELETE...RETURNING, which
+    keeps the token one-shot even under concurrent requests.  Use it wherever the
+    thing being downloaded is itself consumed -- the prepared printer bundle is
+    deleted once streamed, so a second redemption could only ever 404.
+
+    With ``single_use=False`` the token stays valid for the rest of its five-minute
+    TTL.  Use it for the URLs handed to an external slicer over a protocol handler:
+    we do not control that process, and one-shot redemption breaks the moment
+    anything fetches the URL twice -- a retry after a transient failure (Bambu
+    Studio retries three times), a resumed transfer, a redirect follow, an
+    on-access scanner.  The first fetch would win and the slicer would be left
+    with a 403 (#3029).  Resource binding and expiry are unchanged; only the
+    number of redemptions inside the TTL differs.
+
+    M-NEW-1 fix: nonce (resource key) is included in the WHERE clause so redemption
     only succeeds when the token is presented to the *correct* resource endpoint.
     Previously the token was consumed (committed) even when stored_key != expected_key,
     permanently invalidating it while returning False to the caller.
     """
     expected_key = f"{resource_type}:{resource_id}"
     now = datetime.now(timezone.utc)
+    bound = (
+        AuthEphemeralToken.token == token,
+        AuthEphemeralToken.token_type == TokenType.SLICER_DOWNLOAD,
+        AuthEphemeralToken.nonce == expected_key,
+        AuthEphemeralToken.expires_at > now,
+    )
     async with async_session() as db:
-        result = await db.execute(
-            delete(AuthEphemeralToken)
-            .where(
-                AuthEphemeralToken.token == token,
-                AuthEphemeralToken.token_type == TokenType.SLICER_DOWNLOAD,
-                AuthEphemeralToken.nonce == expected_key,
-                AuthEphemeralToken.expires_at > now,
-            )
-            .returning(AuthEphemeralToken.id)
-        )
+        if not single_use:
+            result = await db.execute(select(AuthEphemeralToken.id).where(*bound))
+            return result.scalar_one_or_none() is not None
+        result = await db.execute(delete(AuthEphemeralToken).where(*bound).returning(AuthEphemeralToken.id))
         if result.one_or_none() is None:
             return False
         await db.commit()
