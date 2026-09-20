@@ -64,6 +64,7 @@ from backend.app.utils.filament_types import canonical_filament_type
 from backend.app.utils.filename import derive_remote_filename
 from backend.app.utils.local_time import utcnow_naive
 from backend.app.utils.printer_models import (
+    is_dual_nozzle_model,
     is_gcode_compatible,
     is_nozzle_rack_model,
     normalize_printer_model,
@@ -470,6 +471,77 @@ def _mapping_is_all_unresolved(mapping: list | None) -> bool:
 # 254 is the deputy feed and 255 the main one. Mirrors the sentinel documented
 # on `_mapping_is_all_unresolved`.
 _EXTERNAL_TRAY_ID_MIN = 254
+
+
+def _consumed_mapping_entries(mapping: list | None, required: list[dict] | None) -> list | None:
+    """The ``mapping`` entries for the slots this plate actually prints.
+
+    ``required`` comes from ``extract_filament_requirements``, which drops any
+    filament with ``used_g <= 0`` — so a slot_id present there is one the plate
+    consumes, and one absent from it is padding. That distinction is why this
+    decision lives here and not in the MQTT command builder: a ``-1`` in the
+    mapping means either "this plate does not print filament N" or "we never
+    worked out which tray", and only the plate's own filament list separates
+    them. The builder sees both as the same byte, which is how a plate whose one
+    printed filament sat on the external spool went out as `use_ams=true` with a
+    mapping of nothing but -1 and stalled at preheat until the firmware gave up
+    with 07FF_8012 (#3087).
+
+    Returns None whenever the two cannot be lined up — no mapping, no parsed
+    requirements, or a requirement the mapping is too short to cover — so every
+    caller falls back to existing behaviour rather than acting on a guess.
+    """
+    if not isinstance(mapping, list) or not mapping or not required:
+        return None
+    entries = []
+    for filament in required:
+        slot_id = filament.get("slot_id")
+        if not isinstance(slot_id, int) or not 1 <= slot_id <= len(mapping):
+            # The mapping and the requirements disagree about how many filaments
+            # the file has. They came from different reads, so judge nothing.
+            return None
+        entries.append(mapping[slot_id - 1])
+    return entries or None
+
+
+def _is_external_tray(tray_id) -> bool:
+    """True for an explicit external-spool selection (254/255), not for an
+    unresolved slot and not for an AMS tray."""
+    if tray_id is None:
+        return False
+    try:
+        return int(tray_id) >= _EXTERNAL_TRAY_ID_MIN
+    except (TypeError, ValueError):
+        return False
+
+
+def _might_be_dual_nozzle(printer_model: str | None, status) -> bool:
+    """Whether this printer could have two extruders, judged generously.
+
+    On a dual-nozzle printer ``use_ams`` is nozzle routing rather than an
+    AMS on/off flag — H2D Pro firmware reads it as an extruder index — which is
+    why the MQTT command builder skips its own use_ams reconcile there. Anything
+    that might be dual-nozzle therefore keeps whatever ``use_ams`` it arrived
+    with, external spools or not.
+
+    Deliberately over-eager: a wrong "yes" only means this printer keeps the
+    behaviour it has always had, while a wrong "no" would rewrite a field that
+    steers which nozzle prints. The model name is the first answer (it is what
+    the command builder falls back to as well), then the same live evidence the
+    dispatcher's extruder annotation uses — a second nozzle reporting a
+    diameter, a populated ``ams_extruder_map``, or more than one external feed,
+    since a single-nozzle printer has exactly one.
+    """
+    if is_dual_nozzle_model(printer_model):
+        return True
+    nozzles = getattr(status, "nozzles", None) or []
+    if len(nozzles) > 1 and getattr(nozzles[1], "nozzle_diameter", ""):
+        return True
+    raw = getattr(status, "raw_data", None) or {}
+    if raw.get("ams_extruder_map"):
+        return True
+    vt_trays = raw.get("vt_tray") or []
+    return isinstance(vt_trays, list) and len(vt_trays) > 1
 
 
 def _int_or(value, default: int) -> int:
@@ -6808,6 +6880,54 @@ class PrintScheduler:
             if slot_extruders:
                 nozzle_slot_extruders = json.dumps(slot_extruders)
 
+        # Every filament this plate prints is on the external spool -> the print
+        # must go out with use_ams=False. The firmware answers use_ams=true plus
+        # a mapping it cannot resolve with 07FF_8012 "Failed to get AMS mapping
+        # table", which is what held the reporter's P1S at Heatbed preheating
+        # for ten minutes before it gave up (#3087). The MQTT command builder
+        # already downgrades a mapping that is *only* external ([254]), but a
+        # multi-filament project pads the slots this plate does not print with
+        # -1 — BambuStudio's own convention — and down there a -1 is
+        # indistinguishable from a slot that never resolved, which must never be
+        # sent to the spool holder (#2589). Here the plate's filament list says
+        # which is which, so the answer is exact rather than a guess.
+        #
+        # Deliberately narrow: this fires only when every consumed slot is an
+        # explicit 254/255. A consumed slot that did not resolve leaves use_ams
+        # alone and the firmware still rejects the print, exactly as today. And
+        # only for single-nozzle printers, mirroring the builder's own reconcile
+        # — on a dual-nozzle machine use_ams is which extruder to feed, not
+        # whether to use the AMS, so it is not ours to rewrite.
+        effective_use_ams = item.use_ams
+        if (
+            effective_use_ams
+            and ams_mapping
+            and file_path is not None
+            # Cheap gate before opening the file: with nothing on the spool
+            # holder anywhere in the mapping, no subset of it can be all
+            # external, so most dispatches never pay for the parse. The
+            # isinstance also keeps a malformed stored mapping (a bare number
+            # from a hand-edited row) failing where it always failed, in the
+            # command builder, rather than here.
+            and isinstance(ams_mapping, list)
+            and any(_is_external_tray(t) for t in ams_mapping)
+            and not _might_be_dual_nozzle(printer.model, pre_status)
+        ):
+            from backend.app.services.filament_requirements import extract_filament_requirements
+
+            consumed = _consumed_mapping_entries(
+                ams_mapping, extract_filament_requirements(file_path, plate_id=item.plate_id or 1)
+            )
+            if consumed and all(_is_external_tray(t) for t in consumed):
+                effective_use_ams = False
+                logger.info(
+                    "Queue item %s: every filament plate %s prints is on the external spool "
+                    "(mapping %s) — dispatching with use_ams=False (#3087)",
+                    item.id,
+                    item.plate_id or 1,
+                    ams_mapping,
+                )
+
         # Start the print with AMS mapping, plate_id and print options.
         # nozzle_mapping rides through verbatim — JSON string captured from
         # Bambu Studio's project_file on VP intake (#1780); the MQTT layer
@@ -6824,7 +6944,7 @@ class PrintScheduler:
             vibration_cali=item.vibration_cali,
             layer_inspect=item.layer_inspect,
             timelapse=effective_timelapse,
-            use_ams=item.use_ams,
+            use_ams=effective_use_ams,
             nozzle_offset_cali=item.nozzle_offset_cali,
             nozzle_mapping=item.nozzle_mapping
             or (json.dumps(resolved_nozzle_mapping) if resolved_nozzle_mapping else None),
