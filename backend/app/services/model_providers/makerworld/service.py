@@ -529,7 +529,7 @@ class MakerWorldService(ProviderService):
         Validates that the URL's host is one of the declared thumbnail hosts
         (SSRF guard — symmetric to :meth:`download_3mf`; both allowlists are
         fed from the provider descriptor by ``build_service``). Caps
-        payload at 5 MB. Returns ``(bytes, content_type)``; content type
+        payload at 10 MB. Returns ``(bytes, content_type)``; content type
         defaults to ``image/jpeg`` if the upstream didn't set one.
         """
         try:
