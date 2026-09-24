@@ -2,7 +2,7 @@
 
 All notable changes to Bambuddy will be documented in this file.
 
-## [1.2.5.6] - 2026-09-21
+## [1.2.5.6] - 2026-09-24
 
 ### Added
 - **Swedish (sv) is now a supported interface language (#3052, requested and contributed by @AntonPalmqvist in [PR #3062](https://github.com/maziggy/bambuddy/pull/3062))** — Adds `sv` as the fifteenth locale, listed as "Svenska" in the language picker. It arrives in parity with the reference locale rather than as a file to be finished afterwards: all 6302 leaves present, structure and key order matching `en.ts`, and every `{{placeholder}}` set intact, which is what the parity gate checks before a locale is allowed to ship. 156 of those leaves are identical to English, and each is enumerated by value in a 74-entry `SV_COGNATES` allow-list in `check-i18n-parity.mjs` — the same shape the other thirteen locales use, so the exemption is an enumerated translator decision rather than a blanket skip for the language. They are the strings with nothing in them to translate (`{{weight}}g`, `Hex: #{{hex}}`, `{{filament}} @ {{temp}}°C`), the product names Bambu and Orca ship untranslated, and the technical UI vocabulary Swedish takes verbatim from English — filament, status, extruder, timelapse, firmware, proxy, pipeline, diameter. Parity green at 6302 leaves across all 15 locales.
