@@ -5759,10 +5759,23 @@ export const api = {
       headers,
       body: formData,
     });
-    return response.json() as Promise<{
+    const data = (await response.json().catch(() => null)) as {
+      success?: boolean;
+      message?: string;
+      detail?: string;
+    } | null;
+    // A refused restore is an HTTPException, so the body is {detail}, not
+    // {success, message}. Returning it unmapped made `success` undefined and
+    // `message` undefined too — the modal then raised an empty error toast,
+    // which is the one case where the reason matters most (e.g. a backup this
+    // version cannot import names the columns and both versions).
+    if (!response.ok) {
+      return { success: false, message: data?.detail ?? data?.message ?? '' };
+    }
+    return (data ?? { success: false, message: '' }) as {
       success: boolean;
       message: string;
-    }>;
+    };
   },
   checkFfmpeg: () =>
     request<{ installed: boolean; path: string | null }>('/settings/check-ffmpeg'),
