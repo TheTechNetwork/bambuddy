@@ -57,10 +57,33 @@ from backend.app.services.print_scheduler import PrintScheduler
 UPLOAD_SECONDS = 0.15
 
 
+def _test_engine(tmp_path):
+    """An engine that gives every session its own connection.
+
+    ``sqlite+aiosqlite:///:memory:`` is the obvious choice here and it is wrong:
+    SQLAlchemy backs an in-memory SQLite with a ``StaticPool`` -- one DBAPI
+    connection handed to every session, with nothing keeping them apart. That was
+    harmless while ``check_queue`` awaited its uploads inline, because only one
+    session was ever live. Under the pool model (#2602) the uploads run as
+    concurrent tasks with a session each, so their transactions interleave on that
+    single connection: a sibling session's ``close()`` rolls back another's
+    flushed-but-uncommitted UPDATE -- rows read back ``pending`` although the log
+    says ``Status set to 'printing'`` -- and a ``commit()`` landing while another
+    session still holds a cursor raises "cannot commit transaction - SQL
+    statements in progress". It failed on CI and passed locally purely on core
+    count and interpreter version.
+
+    A file gets ``AsyncAdaptedQueuePool`` and a connection per session, which is
+    what the app runs with in production (``_resolve_pool_kwargs`` in
+    ``backend/app/core/database.py``: pool_size 20, max_overflow 200).
+    """
+    return create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'queue.db'}", echo=False)
+
+
 @pytest.fixture
 async def farm(tmp_path):
     """Build a farm of N printers, each with one pending queue item."""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
+    engine = _test_engine(tmp_path)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     session_maker = async_sessionmaker(engine, expire_on_commit=False)
@@ -529,7 +552,7 @@ class TestSharedLibraryRow:
 
         Nothing here mutates the library row, so all four must upload at once.
         """
-        engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
+        engine = _test_engine(tmp_path)
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
         session_maker = async_sessionmaker(engine, expire_on_commit=False)
@@ -551,7 +574,7 @@ class TestSharedLibraryRow:
         Each of these deletes the library row and unlinks the 3MF when done.
         Exactly one may go per pass; the rest stay pending for a later one.
         """
-        engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
+        engine = _test_engine(tmp_path)
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
         session_maker = async_sessionmaker(engine, expire_on_commit=False)
@@ -583,7 +606,7 @@ async def test_library_print_without_a_parseable_print_time_does_not_crash(tmp_p
     dispatch. Two printers here: if the first one's dispatch blows up, the second
     must still go out.
     """
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
+    engine = _test_engine(tmp_path)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     session_maker = async_sessionmaker(engine, expire_on_commit=False)
