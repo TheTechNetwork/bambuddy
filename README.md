@@ -333,6 +333,7 @@ Optional but recommended — drop the [`slicer-api/` Compose stack](slicer-api/R
 ### 🔔 Notifications
 - WhatsApp, Telegram (including forum topics), Discord
 - Email, Pushover, Bark, ntfy (with per-event priority — Min / Low / Default / High / Urgent)
+- **Notify!** — push alerts plus iOS Live Activities (live print countdown on the Lock Screen) and Lock Screen status widgets per printer
 - Home Assistant persistent notifications, with custom data fields
 - Custom webhooks
 - Quiet hours & daily digest
